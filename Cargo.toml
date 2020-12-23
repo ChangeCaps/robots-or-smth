@@ -10,3 +10,5 @@ edition = "2018"
 bevy = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 ron = "0.6"
+anyhow = "1.0"
+typetag = "0.1"

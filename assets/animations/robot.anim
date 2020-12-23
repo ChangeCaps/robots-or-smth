@@ -1,0 +1,44 @@
+(
+    animations: {
+        "walk_up_left": Animation(
+			start: 0,
+			end: 23,
+			frame_length: 0.08,
+		),
+		"walk_left": Animation(
+			start: 24,
+			end: 47,
+			frame_length: 0.08,
+		),
+		"walk_down_left": Animation(
+			start: 64,
+			end: 71,
+			frame_length: 0.08,
+		),
+		"walk_down": Animation(
+			start: 72,
+			end: 95,
+			frame_length: 0.08,
+		),
+		"walk_down_right": Animation(
+			start: 96,
+			end: 119,
+			frame_length: 0.08,
+		),
+		"walk_right": Animation(
+			start: 120,
+			end: 143,
+			frame_length: 0.08,
+		),
+		"walk_up_right": Animation(
+			start: 144,
+			end: 167,
+			frame_length: 0.08,
+		),
+		"walk_up": Animation(
+			start: 168,
+			end: 191,
+			frame_length: 0.08,
+		),
+    },
+)

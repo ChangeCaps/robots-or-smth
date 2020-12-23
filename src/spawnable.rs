@@ -1,6 +1,51 @@
 use bevy::prelude::*;
+use bevy::{
+    asset::{AssetLoader, LoadContext, LoadedAsset},
+    reflect::TypeUuid,
+    utils::BoxedFuture,
+};
 use std::sync::{Arc, Mutex};
 
+pub struct SpawnableLoader;
+
+impl AssetLoader for SpawnableLoader {
+    fn load<'a>(
+        &'a self,
+        bytes: &'a [u8],
+        load_context: &'a mut LoadContext,
+    ) -> BoxedFuture<'a, Result<(), anyhow::Error>> {
+        Box::pin(async move {
+            let spawnable: Box<dyn Spawnable> = ron::de::from_bytes(bytes)?;
+            load_context.set_default_asset(LoadedAsset::new(Spawner::new(spawnable)));
+
+            Ok(())
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["spn"]
+    }
+}
+
+#[derive(TypeUuid)]
+#[uuid = "66f796f4-fdac-40a3-a600-54cc920ad367"]
+pub struct Spawner {
+    spawnable: Box<dyn Spawnable>,
+}
+
+impl AsRef<Box<dyn Spawnable>> for Spawner {
+    fn as_ref(&self) -> &Box<dyn Spawnable> {
+        &self.spawnable
+    }
+}
+
+impl Spawner {
+    pub fn new(spawnable: Box<dyn Spawnable>) -> Self {
+        Self { spawnable }
+    }
+}
+
+#[typetag::serde(tag = "spawnable")]
 pub trait Spawnable: Send + Sync + 'static {
     fn spawn(&self, commands: &mut Commands, resources: &Resources) -> Entity;
 }

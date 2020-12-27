@@ -62,6 +62,7 @@ pub struct Animator {
     animation_set: Handle<AnimationSet>,
     playing_animation: String,
     play_time: f32,
+    current_frame: u32,
 }
 
 impl Animator {
@@ -70,16 +71,26 @@ impl Animator {
             animation_set,
             playing_animation: playing_animation.into(),
             play_time: 0.0,
+            current_frame: 0,
         }
     }
 
     pub fn play(&mut self, name: impl Into<String>) {
         self.playing_animation = name.into();
         self.play_time = 0.0;
+        self.current_frame = 0;
+    }
+
+    pub fn playing(&self) -> &String {
+        &self.playing_animation
     }
 
     pub fn set_playing(&mut self, name: impl Into<String>) {
         self.playing_animation = name.into();
+    }
+
+    pub fn current_frame(&self) -> u32 {
+        self.current_frame
     }
 }
 
@@ -93,6 +104,7 @@ pub fn animator_system(
             animation_set,
             playing_animation,
             play_time,
+            current_frame,
             ..
         } = &mut *animator;
 
@@ -100,10 +112,10 @@ pub fn animator_system(
             if let Some(animation) = animation_set.get(playing_animation.clone()) {
                 *play_time += time.delta_seconds();
 
-                let curret_frame = (*play_time / animation.frame_length).floor() as u32
+                *current_frame = (*play_time / animation.frame_length).floor() as u32
                     % (animation.end - animation.start);
 
-                sprite.index = curret_frame + animation.start;
+                sprite.index = *current_frame + animation.start;
             }
         }
     }

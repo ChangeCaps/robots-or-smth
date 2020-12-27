@@ -1,0 +1,12 @@
+TileMap(
+    layers: {
+        0: Layer(
+            tile_set: {
+                (x: 0, y: 0): 0,
+                (x: 1, y: 0): 0,
+            }
+        ),
+    },
+    tile_size: (64.0, 32.0),
+    changed: true,
+)

@@ -11,7 +11,7 @@
 			frame_length: 0.08,
 		),
 		"walk_down_left": Animation(
-			start: 64,
+			start: 48,
 			end: 71,
 			frame_length: 0.08,
 		),

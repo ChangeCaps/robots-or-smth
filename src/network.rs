@@ -102,15 +102,15 @@ pub const CONNECTION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSe
         },
         max_message_len: 1024,
     },
-    message_buffer_size: 8,
-    packet_buffer_size: 8,
+    message_buffer_size: 64,
+    packet_buffer_size: 64,
 };
 
 const ANIMATOR_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 1,
     channel_mode: MessageChannelMode::Unreliable,
-    message_buffer_size: 8,
-    packet_buffer_size: 8,
+    message_buffer_size: 64,
+    packet_buffer_size: 64,
 };
 
 const SPAWNER_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
@@ -130,8 +130,8 @@ const SPAWNER_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings 
         },
         max_message_len: 1024,
     },
-    message_buffer_size: 8,
-    packet_buffer_size: 8,
+    message_buffer_size: 64,
+    packet_buffer_size: 64,
 };
 
 const ACTION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
@@ -151,13 +151,13 @@ const ACTION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
         },
         max_message_len: 1024,
     },
-    message_buffer_size: 8,
-    packet_buffer_size: 8,
+    message_buffer_size: 64,
+    packet_buffer_size: 64,
 };
 
 const POSITION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 4,
     channel_mode: MessageChannelMode::Unreliable,
-    message_buffer_size: 8,
-    packet_buffer_size: 8,
+    message_buffer_size: 64,
+    packet_buffer_size: 64,
 };

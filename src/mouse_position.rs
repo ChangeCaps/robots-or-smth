@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use crate::*;
 
 pub struct MousePosition {
     position: Vec2,
@@ -33,11 +33,8 @@ pub fn mouse_position_system(
 
         let position = event.position - size / 2.0;
 
-        let mut world_position =
-            camera_transform.compute_matrix() * position.extend(0.0).extend(1.0);
+        let world_position = camera_transform.compute_matrix() * position.extend(0.0).extend(1.0);
 
-        world_position.y *= 2.0;
-
-        mouse_position.position = world_position.truncate().truncate();
+        mouse_position.position = *isometric::SCREEN_TO_ISO * world_position.truncate().truncate();
     }
 }

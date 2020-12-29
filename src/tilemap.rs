@@ -63,7 +63,7 @@ impl TileMap {
 
         for (ident, layer) in &self.layers {
             for (pos, tile) in &layer.tile_set {
-                let screen = *ISO_TO_SCREEN * pos.pos();
+                let screen = *ISO_TO_SCREEN * pos.pos().extend(0.0);
 
                 let index = verts.len() as u32;
 
@@ -177,19 +177,34 @@ impl Default for TileMapBundle {
 
 pub struct TileMapLoader;
 
-ron_loader!(TileMapLoader, "map" => TileMap, "tile_set" => TileSet);
+ron_loader!(TileMapLoader, "tile_map" => TileMap, "tile_set" => TileSet);
 
-pub struct TileMapPlugin;
+pub struct TileMapPlugin(bool);
+
+impl TileMapPlugin {
+    pub fn server() -> Self {
+        Self(true)
+    }
+
+    pub fn client() -> Self {
+        Self(false)
+    }
+}
 
 pub const TILEMAP_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 45672853815236);
 
 impl Plugin for TileMapPlugin {
     fn build(&self, app_builder: &mut AppBuilder) {
-        app_builder.add_system(tile_map_system.system());
         app_builder.add_asset::<TileMap>();
         app_builder.add_asset::<TileSet>();
         app_builder.add_asset_loader(TileMapLoader);
+
+        if self.0 {
+            return;
+        }
+
+        app_builder.add_system(tile_map_system.system());
 
         let resources = app_builder.resources_mut();
         let asset_server = resources.get::<AssetServer>().unwrap();

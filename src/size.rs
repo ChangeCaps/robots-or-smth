@@ -38,7 +38,7 @@ pub fn unit_size_system(
                 continue;
             }
 
-            position.position += diff.normalize() * overlap / 2.0;
+            position.position += diff.normalize() * overlap;
         }
     }
 }

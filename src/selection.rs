@@ -21,8 +21,15 @@ pub fn unit_selection_system(
     mouse_input: Res<Input<MouseButton>>,
     keyboard_input: Res<Input<KeyCode>>,
     units: Res<Assets<Unit>>,
-    query: Query<(Entity, &Position, &Handle<Unit>)>,
+    player_id: Res<Option<PlayerId>>,
+    query: Query<(Entity, &Position, &Handle<Unit>, &Owner)>,
 ) {
+    if player_id.is_none() {
+        return;
+    }
+
+    let player_id = player_id.unwrap();
+
     let input_config = match input_config.get(&input_resource.0) {
         Some(i) => i,
         None => return,
@@ -35,18 +42,25 @@ pub fn unit_selection_system(
     if mouse_input.just_released(MouseButton::Left) {
         let box_select = selection.box_select.distance(mouse_position.position()) > 5.0;
 
-        let min = mouse_position.position().min(selection.box_select);
-        let max = mouse_position.position().max(selection.box_select);
+        let a = (*ISO_TO_SCREEN).transform_vector2(mouse_position.position());
+        let b = (*ISO_TO_SCREEN).transform_vector2(selection.box_select);
+
+        let min = a.min(b);
+        let max = a.max(b);
 
         if !keyboard_input.pressed(input_config.add_to_selection) {
             selected_units.units = HashSet::new();
         }
 
-        for (entity, position, unit_handle) in query.iter() {
+        for (entity, position, unit_handle, owner) in query.iter() {
+            if owner.0 != player_id {
+                continue;
+            }
+
             if box_select {
-                if position.position.truncate().cmpge(min).all()
-                    && position.position.truncate().cmple(max).all()
-                {
+                let position = *ISO_TO_SCREEN * position.position;
+
+                if position.truncate().cmpge(min).all() && position.truncate().cmple(max).all() {
                     selected_units.units.insert(entity);
                 }
             } else {
@@ -77,5 +91,3 @@ pub fn unit_selection_ring_system(
         }
     }
 }
-
-pub struct SelectionPlugin;

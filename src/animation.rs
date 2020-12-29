@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use crate::*;
 use bevy::{
     asset::{AssetLoader, LoadContext, LoadedAsset},
     reflect::TypeUuid,
@@ -9,24 +9,7 @@ use std::collections::HashMap;
 
 pub struct AnimationSetLoader;
 
-impl AssetLoader for AnimationSetLoader {
-    fn load<'a>(
-        &'a self,
-        bytes: &'a [u8],
-        load_context: &'a mut LoadContext,
-    ) -> BoxedFuture<'a, Result<(), anyhow::Error>> {
-        Box::pin(async move {
-            let animation_set = ron::de::from_bytes::<AnimationSet>(bytes)?;
-            load_context.set_default_asset(LoadedAsset::new(animation_set));
-
-            Ok(())
-        })
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["anim"]
-    }
-}
+ron_loader!(AnimationSetLoader, "anim" => AnimationSet);
 
 #[derive(Serialize, Deserialize)]
 pub struct Animation {
@@ -57,12 +40,26 @@ impl AnimationSet {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum AnimatorOperation {
+    Play(String),
+    SetPlaying(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AnimatorMessage {
+    operation: AnimatorOperation,
+    network_entity: NetworkEntity,
+}
+
 #[derive(Reflect)]
 pub struct Animator {
     animation_set: Handle<AnimationSet>,
     playing_animation: String,
     play_time: f32,
     current_frame: u32,
+    #[reflect(ignore)]
+    operations: Vec<AnimatorOperation>,
 }
 
 impl Animator {
@@ -72,13 +69,16 @@ impl Animator {
             playing_animation: playing_animation.into(),
             play_time: 0.0,
             current_frame: 0,
+            operations: Vec::new(),
         }
     }
 
     pub fn play(&mut self, name: impl Into<String>) {
-        self.playing_animation = name.into();
+        let name = name.into();
+        self.playing_animation = name.clone();
         self.play_time = 0.0;
         self.current_frame = 0;
+        self.operations.push(AnimatorOperation::Play(name));
     }
 
     pub fn playing(&self) -> &String {
@@ -86,20 +86,35 @@ impl Animator {
     }
 
     pub fn set_playing(&mut self, name: impl Into<String>) {
-        self.playing_animation = name.into();
+        let name = name.into();
+        self.playing_animation = name.clone();
+        self.operations.push(AnimatorOperation::SetPlaying(name));
     }
 
     pub fn current_frame(&self) -> u32 {
         self.current_frame
+    }
+
+    pub fn apply(&mut self, message: AnimatorOperation) {
+        match message {
+            AnimatorOperation::Play(anim) => {
+                self.playing_animation = anim;
+                self.play_time = 0.0;
+                self.current_frame = 0;
+            }
+            AnimatorOperation::SetPlaying(anim) => {
+                self.playing_animation = anim;
+            }
+        }
     }
 }
 
 pub fn animator_system(
     time: Res<Time>,
     animation_sets: Res<Assets<AnimationSet>>,
-    mut query: Query<(&mut Animator, &mut TextureAtlasSprite)>,
+    mut query: Query<&mut Animator>,
 ) {
-    for (mut animator, mut sprite) in query.iter_mut() {
+    for mut animator in query.iter_mut() {
         let Animator {
             animation_set,
             playing_animation,
@@ -109,26 +124,88 @@ pub fn animator_system(
         } = &mut *animator;
 
         if let Some(animation_set) = animation_sets.get(animation_set.clone()) {
-            if let Some(animation) = animation_set.get(playing_animation.clone()) {
+            if let Some(animation) = animation_set.get(&*playing_animation) {
                 *play_time += time.delta_seconds();
 
                 *current_frame = (*play_time / animation.frame_length).floor() as u32
-                    % (animation.end - animation.start);
-
-                sprite.index = *current_frame + animation.start;
+                    % (animation.end - animation.start + 1);
             }
         }
     }
 }
 
-pub struct AnimationPlugin;
+pub fn animator_sprite_system(
+    animation_sets: Res<Assets<AnimationSet>>,
+    mut query: Query<(&Animator, &mut TextureAtlasSprite)>,
+) {
+    for (animator, mut sprite) in query.iter_mut() {
+        if let Some(animation_set) = animation_sets.get(&animator.animation_set) {
+            if let Some(animation) = animation_set.get(&animator.playing_animation) {
+                sprite.index = animator.current_frame() + animation.start;
+            }
+        }
+    }
+}
+
+pub fn server_network_animator_system(
+    mut net: ResMut<NetworkResource>,
+    mut query: Query<(&NetworkEntity, &mut Animator)>,
+) {
+    for (network_entity, mut animator) in query.iter_mut() {
+        for operation in animator.operations.drain(..) {
+            let message = AnimatorMessage {
+                operation,
+                network_entity: network_entity.clone(),
+            };
+
+            net.broadcast_message(message);
+        }
+    }
+}
+
+pub fn client_network_animator_system(
+    mut net: ResMut<NetworkResource>,
+    network_entity_registry: Res<NetworkEntityRegistry>,
+    mut query: Query<&mut Animator>,
+) {
+    for (_handle, connection) in net.connections.iter_mut() {
+        let channels = connection.channels().unwrap();
+
+        while let Some(animator_message) = channels.recv::<AnimatorMessage>() {
+            let entity = network_entity_registry
+                .get(&animator_message.network_entity)
+                .unwrap();
+            let mut animator = query.get_mut(*entity).unwrap();
+
+            animator.apply(animator_message.operation);
+        }
+    }
+}
+
+pub struct AnimationPlugin(bool);
+
+impl AnimationPlugin {
+    pub fn server() -> Self {
+        Self(true)
+    }
+
+    pub fn client() -> Self {
+        Self(false)
+    }
+}
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app_builder: &mut AppBuilder) {
-        app_builder
-            .add_system(animator_system.system())
-            .add_asset::<AnimationSet>()
-            .add_asset_loader(AnimationSetLoader)
-            .register_type::<Animator>();
+        app_builder.add_asset_loader(AnimationSetLoader);
+        app_builder.add_asset::<AnimationSet>();
+        app_builder.register_type::<Animator>();
+        app_builder.add_system(animator_system.system());
+
+        if self.0 {
+            app_builder.add_system(server_network_animator_system.system());
+        } else {
+            app_builder.add_system(client_network_animator_system.system());
+            app_builder.add_system(animator_sprite_system.system());
+        }
     }
 }

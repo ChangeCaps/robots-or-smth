@@ -1,4 +1,4 @@
-(
+AnimationSet(
     animations: {
         "walk_up_left": Animation(
 			start: 0,

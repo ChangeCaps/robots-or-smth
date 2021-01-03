@@ -43,7 +43,7 @@ impl AnimationSet {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AnimatorOperation {
     Play(String),
-    SetPlaying(String),
+    SetPlaying(String, u32),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -58,6 +58,7 @@ pub struct Animator {
     playing_animation: String,
     play_time: f32,
     current_frame: u32,
+    frame_set: bool,
     #[reflect(ignore)]
     operations: Vec<AnimatorOperation>,
 }
@@ -69,6 +70,7 @@ impl Animator {
             playing_animation: playing_animation.into(),
             play_time: 0.0,
             current_frame: 0,
+            frame_set: false,
             operations: Vec::new(),
         }
     }
@@ -87,12 +89,23 @@ impl Animator {
 
     pub fn set_playing(&mut self, name: impl Into<String>) {
         let name = name.into();
+
+        if self.playing_animation == name {
+            return;
+        }
+
         self.playing_animation = name.clone();
-        self.operations.push(AnimatorOperation::SetPlaying(name));
+        self.operations
+            .push(AnimatorOperation::SetPlaying(name, self.current_frame()));
     }
 
     pub fn current_frame(&self) -> u32 {
         self.current_frame
+    }
+
+    pub fn set_current_frame(&mut self, frame: u32) {
+        self.current_frame = frame;
+        self.frame_set = true;
     }
 
     pub fn apply(&mut self, message: AnimatorOperation) {
@@ -102,8 +115,9 @@ impl Animator {
                 self.play_time = 0.0;
                 self.current_frame = 0;
             }
-            AnimatorOperation::SetPlaying(anim) => {
+            AnimatorOperation::SetPlaying(anim, frame) => {
                 self.playing_animation = anim;
+                self.current_frame = frame;
             }
         }
     }
@@ -120,11 +134,18 @@ pub fn animator_system(
             playing_animation,
             play_time,
             current_frame,
+            frame_set,
             ..
         } = &mut *animator;
 
         if let Some(animation_set) = animation_sets.get(animation_set.clone()) {
             if let Some(animation) = animation_set.get(&*playing_animation) {
+                if *frame_set {
+                    *frame_set = false;
+
+                    *play_time = *current_frame as f32 * animation.frame_length;
+                }
+
                 *play_time += time.delta_seconds();
 
                 *current_frame = (*play_time / animation.frame_length).floor() as u32

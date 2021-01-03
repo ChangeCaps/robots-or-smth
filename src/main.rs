@@ -1,6 +1,8 @@
 pub mod animation;
 pub mod asset_loading;
+pub mod behaviour;
 mod client;
+pub mod command;
 pub mod connection;
 pub mod input;
 pub mod isometric;
@@ -13,11 +15,19 @@ pub mod selection;
 pub mod server;
 pub mod size;
 pub mod spawnable;
+pub mod sprite_shader;
+pub mod tile_map_spawnable;
 pub mod tilemap;
 pub mod unit;
+pub mod unit_animation;
 pub mod unit_spawnable;
 
+pub use behaviour::*;
+pub use command::*;
 pub use map::*;
+pub use sprite_shader::*;
+pub use tile_map_spawnable::*;
+pub use unit_animation::*;
 pub use unit_spawnable::*;
 #[macro_use]
 pub use asset_loading::*;
@@ -32,6 +42,7 @@ pub use isometric::*;
 pub use mouse_position::*;
 pub use network::*;
 pub use position::*;
+pub use rand::prelude::*;
 pub use robots::*;
 pub use selection::*;
 pub use serde::{Deserialize, Serialize};

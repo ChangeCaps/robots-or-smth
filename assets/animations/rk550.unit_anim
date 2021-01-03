@@ -1,0 +1,14 @@
+UnitAnimationSet(
+    animations: {
+        "walk": UnitAnimation(
+            up: "walk_up",
+            up_right: "walk_up_right",
+            right: "walk_right",
+            down_right: "walk_down_right",
+            down: "walk_down",
+            down_left: "walk_down_left",
+            left: "walk_left",
+            up_left: "walk_up_left",
+        ),
+    },
+)

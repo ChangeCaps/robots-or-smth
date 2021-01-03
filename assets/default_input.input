@@ -1,3 +1,6 @@
 InputConfig(
-    add_to_selection: LShift
+    select: Mouse(Left),
+    add_to_selection: Keyboard(LShift),
+    queue_actions: Keyboard(LShift),
+    move_command: Mouse(Right),
 )

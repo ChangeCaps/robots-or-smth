@@ -1,4 +1,5 @@
 use crate::*;
+use bevy::render::pipeline::{RenderPipeline, RenderPipelines};
 use std::collections::VecDeque;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -8,6 +9,7 @@ pub struct UnitSpawnable {
     pub unit: String,
     pub texture: String,
     pub animation_set: String,
+    pub unit_animation_set: String,
 }
 
 #[typetag::serde]
@@ -22,17 +24,26 @@ impl Spawnable for UnitSpawnable {
         let animator = Animator::new(animation_set, "walk_up");
 
         commands
-            .spawn((ActionQueue {
-                actions: VecDeque::new(),
+            .spawn((CommandQueue {
+                commands: VecDeque::new(),
             },))
+            .with(Behaviour::Idle)
             .with(animator)
             .with(unit)
             .with(Position {
                 position: self.position,
             })
+            .with(UnitDirection::Down)
             .with(Owner(self.owner));
 
-        if !network_settings.is_server {
+        if network_settings.is_server {
+            let unit_animation_set: Handle<UnitAnimationSet> =
+                asset_server.load(self.unit_animation_set.as_str());
+
+            commands
+                .with(unit_animation_set)
+                .with(UnitAnimator::new("walk".into()));
+        } else {
             let mut texture_atlases = resources.get_mut::<Assets<TextureAtlas>>().unwrap();
             let mut textures = resources.get_mut::<Assets<ColorMaterial>>().unwrap();
 
@@ -43,11 +54,21 @@ impl Spawnable for UnitSpawnable {
             commands
                 .with_bundle(SpriteSheetBundle {
                     texture_atlas: texture_atlases.add(texture_atlas),
+                    visible: Visible {
+                        is_transparent: true,
+                        ..Default::default()
+                    },
+                    render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                        SPRITE_SHEET_PIPELINE_HANDLE.typed(),
+                    )]),
                     ..Default::default()
                 })
                 .with_children(|parent| {
                     parent.spawn(SpriteBundle {
                         material: textures.add(selection_circle.into()),
+                        render_pipelines: RenderPipelines::from_pipelines(vec![
+                            RenderPipeline::new(SPRITE_PIPELINE_HANDLE.typed()),
+                        ]),
                         ..Default::default()
                     });
                 });

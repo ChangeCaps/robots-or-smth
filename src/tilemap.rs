@@ -77,22 +77,22 @@ impl TileMap {
                 verts.push([
                     screen.x - self.tile_size.x / 2.0,
                     screen.y - self.tile_size.y / 2.0,
-                    *ident as f32 * 1024.0,
+                    -(screen.y + 32.0) / 256.0,
                 ]);
                 verts.push([
                     screen.x + self.tile_size.x / 2.0,
                     screen.y - self.tile_size.y / 2.0,
-                    *ident as f32 * 1024.0,
+                    -(screen.y + 32.0) / 256.0,
                 ]);
                 verts.push([
                     screen.x - self.tile_size.x / 2.0,
                     screen.y + self.tile_size.y / 2.0,
-                    *ident as f32 * 1024.0,
+                    -(screen.y + 32.0) / 256.0,
                 ]);
                 verts.push([
                     screen.x + self.tile_size.x / 2.0,
                     screen.y + self.tile_size.y / 2.0,
-                    *ident as f32 * 1024.0,
+                    -(screen.y + 32.0) / 256.0,
                 ]);
 
                 normals.push([0.0, 0.0, 1.0]);
@@ -141,10 +141,11 @@ pub fn tile_map_system(
 
 #[derive(Bundle)]
 pub struct TileMapBundle {
+    pub sprite: Sprite,
     pub mesh: Handle<Mesh>,
     pub tile_set: Handle<TileSet>,
     pub material: Handle<ColorMaterial>,
-    pub tilemap: Handle<TileMap>,
+    pub tile_map: Handle<TileMap>,
     pub main_pass: bevy::render::render_graph::base::MainPass,
     pub draw: Draw,
     pub visible: Visible,
@@ -156,10 +157,14 @@ pub struct TileMapBundle {
 impl Default for TileMapBundle {
     fn default() -> Self {
         Self {
+            sprite: Sprite {
+                size: Vec2::new(1.0, 1.0),
+                resize_mode: SpriteResizeMode::Manual,
+            },
             mesh: Default::default(),
             tile_set: Default::default(),
             material: Default::default(),
-            tilemap: Default::default(),
+            tile_map: Default::default(),
             main_pass: Default::default(),
             draw: Default::default(),
             visible: Visible {
@@ -167,7 +172,7 @@ impl Default for TileMapBundle {
                 ..Default::default()
             },
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                TILEMAP_PIPELINE_HANDLE.typed(),
+                SPRITE_PIPELINE_HANDLE.typed(),
             )]),
             transform: Default::default(),
             global_transform: Default::default(),
@@ -191,77 +196,14 @@ impl TileMapPlugin {
     }
 }
 
-pub const TILEMAP_PIPELINE_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 45672853815236);
-
 impl Plugin for TileMapPlugin {
     fn build(&self, app_builder: &mut AppBuilder) {
         app_builder.add_asset::<TileMap>();
         app_builder.add_asset::<TileSet>();
         app_builder.add_asset_loader(TileMapLoader);
 
-        if self.0 {
-            return;
+        if !self.0 {
+            app_builder.add_system(tile_map_system.system());
         }
-
-        app_builder.add_system(tile_map_system.system());
-
-        let resources = app_builder.resources_mut();
-        let asset_server = resources.get::<AssetServer>().unwrap();
-        let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
-
-        render_graph.add_system_node("tile_set", AssetRenderResourcesNode::<TileSet>::new(false));
-        render_graph
-            .add_node_edge("tile_set", base::node::MAIN_PASS)
-            .unwrap();
-
-        render_graph.add_system_node("tile_map", AssetRenderResourcesNode::<TileMap>::new(true));
-        render_graph
-            .add_node_edge("tile_map", base::node::MAIN_PASS)
-            .unwrap();
-
-        let pipeline = PipelineDescriptor {
-            rasterization_state: Some(RasterizationStateDescriptor {
-                front_face: FrontFace::Ccw,
-                cull_mode: CullMode::None,
-                depth_bias: 0,
-                depth_bias_slope_scale: 0.0,
-                depth_bias_clamp: 0.0,
-                clamp_depth: false,
-            }),
-            depth_stencil_state: Some(DepthStencilStateDescriptor {
-                format: TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: CompareFunction::LessEqual,
-                stencil: StencilStateDescriptor {
-                    front: StencilStateFaceDescriptor::IGNORE,
-                    back: StencilStateFaceDescriptor::IGNORE,
-                    read_mask: 0,
-                    write_mask: 0,
-                },
-            }),
-            color_states: vec![ColorStateDescriptor {
-                format: TextureFormat::default(),
-                color_blend: BlendDescriptor {
-                    src_factor: BlendFactor::SrcAlpha,
-                    dst_factor: BlendFactor::OneMinusSrcAlpha,
-                    operation: BlendOperation::Add,
-                },
-                alpha_blend: BlendDescriptor {
-                    src_factor: BlendFactor::One,
-                    dst_factor: BlendFactor::One,
-                    operation: BlendOperation::Add,
-                },
-                write_mask: ColorWrite::ALL,
-            }],
-            ..PipelineDescriptor::new(ShaderStages {
-                vertex: asset_server.load("shaders/tilemap_shader.vert"),
-                fragment: Some(asset_server.load("shaders/tilemap_shader.frag")),
-            })
-        };
-
-        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
-
-        pipelines.set_untracked(TILEMAP_PIPELINE_HANDLE, pipeline);
     }
 }

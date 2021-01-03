@@ -1,8 +1,10 @@
 (
     size: 0.75,
     selection_size: 0.75,
+    movement_priority: 4.0,
     movement_speed: FrameWise(
-        [
+        speed: 1.0,
+        frame_mods: [
             1.2, // 0
             1.2, // 1
             1.0, // 2

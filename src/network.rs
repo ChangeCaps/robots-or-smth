@@ -59,6 +59,14 @@ impl NetworkSettings {
     pub fn client() -> Self {
         Self { is_server: false }
     }
+
+    pub fn is_server(&self) -> bool {
+        self.is_server
+    }
+
+    pub fn is_client(&self) -> bool {
+        !self.is_server
+    }
 }
 
 pub fn network_setup(mut net: ResMut<NetworkResource>) {
@@ -76,7 +84,7 @@ pub fn network_setup(mut net: ResMut<NetworkResource>) {
             .unwrap();
 
         builder
-            .register::<ActionMessage>(ACTION_MESSAGE_SETTINGS)
+            .register::<CommandMessage>(ACTION_MESSAGE_SETTINGS)
             .unwrap();
 
         builder

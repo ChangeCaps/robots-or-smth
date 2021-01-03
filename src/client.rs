@@ -16,6 +16,11 @@ impl Client {
             .init_resource::<Option<PlayerId>>()
             .add_resource(NetworkSettings::client())
             .add_resource(self)
+            .add_resource(WindowDescriptor {
+                cursor_locked: true,
+                mode: bevy::window::WindowMode::Fullscreen { use_size: false },
+                ..Default::default()
+            })
             // plugins
             .add_plugins(DefaultPlugins)
             .add_plugin(UnitPlugin::client())
@@ -26,6 +31,7 @@ impl Client {
             .add_plugin(PositionPlugin::client())
             .add_plugin(InputPlugin)
             .add_plugin(NetworkingPlugin)
+            .add_plugin(SpriteShaderPlugin)
             // assets
             // loaders
             // startup systems

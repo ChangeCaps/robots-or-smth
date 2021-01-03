@@ -32,6 +32,7 @@ impl Server {
             .add_plugin(PositionPlugin::server())
             .add_plugin(MapPlugin)
             .add_plugin(NetworkingPlugin)
+            .add_plugin(UnitAnimationPlugin)
             // startup systems
             .add_startup_system(network_setup.system())
             .add_startup_system(setup.system())

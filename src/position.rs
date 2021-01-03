@@ -14,7 +14,7 @@ pub struct PositionMessage {
 pub fn position_system(mut query: Query<(&Position, &mut Transform)>) {
     for (position, mut transform) in query.iter_mut() {
         transform.translation = *isometric::ISO_TO_SCREEN * position.position;
-        transform.translation.z = transform.translation.y / -1024.0;
+        transform.translation.z = transform.translation.y / -256.0;
     }
 }
 

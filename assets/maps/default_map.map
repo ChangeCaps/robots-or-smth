@@ -1,10 +1,15 @@
 Map(
     players: [
         PlayerId(0),
-        PlayerId(1),
+        //PlayerId(1),
     ],
     spawns: [
-
+        {
+            "spawnable": "TileMapSpawnable",
+            "tile_set": "tile_maps/default_tile_set.tile_set",
+            "tile_map": "tile_maps/default_map.tile_map",
+            "texture": "sprites/grass_tile.png",
+        }
     ],
     player_spawns: {
         PlayerId(0): [
@@ -15,30 +20,34 @@ Map(
                 "unit": "units/rk550.unit",
                 "texture": "sprites/sheet.png",
                 "animation_set": "animations/rk550.anim",
+                "unit_animation_set": "animations/rk550.unit_anim",
             },
             {
                 "spawnable": "UnitSpawnable",
                 "owner": PlayerId(0),
-                "position": (4.3, 4.0, 0.0),
+                "position": (5.0, 4.0, 0.0),
                 "unit": "units/rk550.unit",
                 "texture": "sprites/sheet.png",
                 "animation_set": "animations/rk550.anim",
+                "unit_animation_set": "animations/rk550.unit_anim",
             },
             {
                 "spawnable": "UnitSpawnable",
                 "owner": PlayerId(0),
-                "position": (4.0, 4.3, 0.0),
+                "position": (4.0, 5.0, 0.0),
                 "unit": "units/rk550.unit",
                 "texture": "sprites/sheet.png",
                 "animation_set": "animations/rk550.anim",
+                "unit_animation_set": "animations/rk550.unit_anim",
             },
             {
                 "spawnable": "UnitSpawnable",
                 "owner": PlayerId(0),
-                "position": (3.7, 4.0, 0.0),
+                "position": (3.0, 4.0, 0.0),
                 "unit": "units/rk550.unit",
                 "texture": "sprites/sheet.png",
                 "animation_set": "animations/rk550.anim",
+                "unit_animation_set": "animations/rk550.unit_anim",
             },
         ],
         PlayerId(1): [
@@ -49,6 +58,7 @@ Map(
                 "unit": "units/rk550.unit",
                 "texture": "sprites/sheet.png",
                 "animation_set": "animations/rk550.anim",
+                "unit_animation_set": "animations/rk550.unit_anim",
             },
             {
                 "spawnable": "UnitSpawnable",
@@ -57,6 +67,7 @@ Map(
                 "unit": "units/rk550.unit",
                 "texture": "sprites/sheet.png",
                 "animation_set": "animations/rk550.anim",
+                "unit_animation_set": "animations/rk550.unit_anim",
             },
             {
                 "spawnable": "UnitSpawnable",
@@ -65,6 +76,7 @@ Map(
                 "unit": "units/rk550.unit",
                 "texture": "sprites/sheet.png",
                 "animation_set": "animations/rk550.anim",
+                "unit_animation_set": "animations/rk550.unit_anim",
             },
             {
                 "spawnable": "UnitSpawnable",
@@ -73,6 +85,7 @@ Map(
                 "unit": "units/rk550.unit",
                 "texture": "sprites/sheet.png",
                 "animation_set": "animations/rk550.anim",
+                "unit_animation_set": "animations/rk550.unit_anim",
             },
         ],
     },

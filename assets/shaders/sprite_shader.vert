@@ -14,7 +14,12 @@ layout(set = 2, binding = 0) uniform Transform {
     mat4 Model;
 };
 
+layout(set = 2, binding = 1) uniform Sprite_size {
+    vec2 size;
+};
+
 void main() {
     v_Uv = Vertex_Uv;
-    gl_Position = ViewProj * Model * vec4(Vertex_Position, 1.0);
+    vec3 position = Vertex_Position * vec3(size, 1.0);
+    gl_Position = ViewProj * Model * vec4(position, 1.0);
 }

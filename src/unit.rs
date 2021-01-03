@@ -9,38 +9,39 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ActionQueueOperation {
-    AddAction(Action),
-    SetAction(Action),
-    ClearActions,
+pub enum CommandTarget {
+    Position(Vec2),
+    Unit(NetworkEntity),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ActionMessage {
-    operation: ActionQueueOperation,
+pub enum CommandQueueOperation {
+    AddCommand(Box<dyn Command>),
+    SetCommand(Box<dyn Command>),
+    ClearCommands,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CommandMessage {
+    operation: CommandQueueOperation,
     network_entity: NetworkEntity,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Action {
-    Move { target_position: Vec2 },
+pub struct CommandQueue {
+    pub commands: VecDeque<Box<dyn Command>>,
 }
 
-pub struct ActionQueue {
-    pub actions: VecDeque<Action>,
-}
-
-impl ActionQueue {
-    pub fn apply(&mut self, operation: ActionQueueOperation) {
+impl CommandQueue {
+    pub fn apply(&mut self, operation: CommandQueueOperation, unit: &Unit) {
         match operation {
-            ActionQueueOperation::AddAction(action) => {
-                self.actions.push_front(action);
+            CommandQueueOperation::AddCommand(action) => {
+                self.commands.push_front(action);
             }
-            ActionQueueOperation::SetAction(action) => {
-                self.actions = vec![action].into();
+            CommandQueueOperation::SetCommand(action) => {
+                self.commands = vec![action].into();
             }
-            ActionQueueOperation::ClearActions => {
-                self.actions.clear();
+            CommandQueueOperation::ClearCommands => {
+                self.commands.clear();
             }
         }
     }
@@ -49,7 +50,7 @@ impl ActionQueue {
 #[derive(Serialize, Deserialize)]
 pub enum MovementSpeed {
     Constant(f32),
-    FrameWise(Vec<f32>),
+    FrameWise { speed: f32, frame_mods: Vec<f32> },
 }
 
 #[derive(TypeUuid, Serialize, Deserialize)]
@@ -57,135 +58,184 @@ pub enum MovementSpeed {
 pub struct Unit {
     pub size: f32,
     pub selection_size: f32,
+    pub movement_priority: f32,
     pub movement_speed: MovementSpeed,
 }
 
-pub fn unit_action_system(
+fn operation(command: Box<dyn Command>, keyboard_input: &Input<KeyCode>) -> CommandQueueOperation {
+    match () {
+        _ if keyboard_input.pressed(KeyCode::LShift) => CommandQueueOperation::AddCommand(command),
+        _ => CommandQueueOperation::SetCommand(command),
+    }
+}
+
+pub fn unit_command_system(
     mouse_position: Res<MousePosition>,
     mouse_input: Res<Input<MouseButton>>,
+    input_config: Res<Assets<InputConfig>>,
+    input_resource: Res<InputResource>,
     keyboard_input: Res<Input<KeyCode>>,
     selected_units: Res<SelectedUnits>,
+    units: Res<Assets<Unit>>,
     mut net: ResMut<NetworkResource>,
-    query: Query<&NetworkEntity>,
+    query: Query<(&Position, &Handle<Unit>, &NetworkEntity)>,
 ) {
-    let action = match () {
-        _ if mouse_input.just_pressed(MouseButton::Right) => Some(Action::Move {
-            target_position: mouse_position.position(),
-        }),
-        _ => None,
+    let input_config = match input_config.get(&input_resource.0) {
+        Some(i) => i,
+        None => return,
     };
 
-    let operation = match action {
-        Some(action) if keyboard_input.pressed(KeyCode::LShift) => {
-            Some(ActionQueueOperation::AddAction(action))
+    let mut target = CommandTarget::Position(mouse_position.position());
+
+    for (position, unit_handle, network_entity) in query.iter() {
+        let unit = units.get(&*unit_handle).unwrap();
+
+        if (mouse_position.position() - position.position.truncate()).length() < unit.selection_size
+        {
+            target = CommandTarget::Unit(*network_entity);
         }
-        Some(action) => Some(ActionQueueOperation::SetAction(action)),
-        None => None,
-    };
+    }
 
-    if let Some(operation) = operation {
-        for entity in &selected_units.units {
-            let network_entity = query.get(*entity).unwrap();
+    match () {
+        _ if input_config
+            .move_command
+            .just_pressed(&keyboard_input, &mouse_input) =>
+        {
+            let mut diameter = 0.0;
+            let mut center = Vec2::zero();
+            let mut center_of_mass = Vec2::zero();
+            let mut area = 0.0;
 
-            let message = ActionMessage {
-                operation: operation.clone(),
-                network_entity: *network_entity,
-            };
+            // calculate MEC
+            for a in &selected_units.units {
+                let (a_position, a_unit_handle, _) = query.get(*a).unwrap();
+                let a_unit = units.get(&*a_unit_handle).unwrap();
 
-            net.broadcast_message(message);
+                area += a_unit.size.powi(2) * std::f32::consts::PI;
+                center_of_mass += a_position.position.truncate();
+
+                for b in &selected_units.units {
+                    if a == b {
+                        continue;
+                    }
+
+                    let (b_position, b_unit_handle, _) = query.get(*b).unwrap();
+                    let b_unit = units.get(&*b_unit_handle).unwrap();
+
+                    let diff = a_position.position.truncate() - b_position.position.truncate();
+                    let d = diff.length() + a_unit.size + b_unit.size;
+
+                    if d > diameter {
+                        diameter = d;
+
+                        center =
+                            (a_position.position.truncate() + b_position.position.truncate()) / 2.0;
+                        center += diff.normalize() * a_unit.size;
+                        center -= diff.normalize() * b_unit.size;
+                    }
+                }
+            }
+
+            center_of_mass /= selected_units.units.len() as f32;
+
+            if area > (diameter / 2.0).powi(2) * std::f32::consts::PI * 0.4 {
+                for entity in &selected_units.units {
+                    let (position, _, network_entity) = query.get(*entity).unwrap();
+
+                    let relative_position = position.position.truncate() - center_of_mass;
+
+                    let command = MoveCommand {
+                        target: match &target {
+                            CommandTarget::Position(position) => {
+                                CommandTarget::Position(*position + relative_position)
+                            }
+                            CommandTarget::Unit(_) => target.clone(),
+                        },
+                        precise: match &target {
+                            CommandTarget::Position(_) => true,
+                            CommandTarget::Unit(_) => false,
+                        },
+                    };
+
+                    let message = CommandMessage {
+                        operation: operation(Box::new(command.clone()), &keyboard_input),
+                        network_entity: *network_entity,
+                    };
+
+                    net.broadcast_message(message);
+                }
+            } else {
+                for network_entity in &selected_units.network_entities {
+                    let message = CommandMessage {
+                        operation: operation(
+                            Box::new(MoveCommand {
+                                target: target.clone(),
+                                precise: false,
+                            }),
+                            &keyboard_input,
+                        ),
+                        network_entity: *network_entity,
+                    };
+
+                    net.broadcast_message(message);
+                }
+            }
         }
+        _ => (),
     }
 }
 
 pub fn network_unit_action_system(
     mut net: ResMut<NetworkResource>,
+    units: Res<Assets<Unit>>,
     network_entity_registry: Res<NetworkEntityRegistry>,
-    mut query: Query<&mut ActionQueue>,
+    players: Res<Players>,
+    mut query: Query<(&mut CommandQueue, &Handle<Unit>, &Owner)>,
 ) {
     for (handle, connection) in net.connections.iter_mut() {
         let channels = connection.channels().unwrap();
 
-        while let Some(action_message) = channels.recv::<ActionMessage>() {
+        while let Some(action_message) = channels.recv::<CommandMessage>() {
             let entity = network_entity_registry
                 .get(&action_message.network_entity)
                 .unwrap();
-            let mut action_queue = query.get_mut(*entity).unwrap();
+            let (mut action_queue, unit_handle, owner) = query.get_mut(*entity).unwrap();
 
-            info!(
-                "Got action operation from [{:?}]: {:?}",
-                handle, action_message.operation
-            );
+            let player = players.player_ids.get(handle).unwrap();
 
-            action_queue.apply(action_message.operation);
+            if *player != owner.0 {
+                warn!("Recieved action from wrong owner {:?}", player);
+                continue;
+            }
+
+            let unit = units.get(&*unit_handle).unwrap();
+            action_queue.apply(action_message.operation.clone(), unit);
         }
     }
 }
 
-pub fn unit_action_execution_system(
-    time: Res<Time>,
+pub fn unit_command_execution_system(
     units: Res<Assets<Unit>>,
-    mut query: Query<(
-        &mut ActionQueue,
-        &mut Position,
-        &mut Animator,
-        &Handle<Unit>,
-    )>,
+    network_entity_registry: Res<NetworkEntityRegistry>,
+    command_query: Query<(&Position)>,
+    mut query: Query<(Entity, &mut CommandQueue, &mut Behaviour, &Handle<Unit>)>,
 ) {
-    for (mut action_queue, mut position, mut animator, unit_handle) in query.iter_mut() {
-        let unit = units.get(unit_handle).unwrap();
+    for (entity, mut command_queue, mut behaviour, unit_handle) in query.iter_mut() {
+        let unit = units.get(&*unit_handle).unwrap();
 
-        let mut completed = false;
-
-        if let Some(action) = action_queue.actions.back() {
-            match action {
-                Action::Move { target_position } => {
-                    let mut movement_step = *target_position - position.position.truncate();
-
-                    let movement_speed = match &unit.movement_speed {
-                        MovementSpeed::Constant(speed) => *speed,
-                        MovementSpeed::FrameWise(frame_mods) => {
-                            frame_mods[animator.current_frame() as usize]
-                        }
-                    };
-
-                    if movement_step.length() <= movement_speed * time.delta_seconds() {
-                        completed = true;
-                    } else {
-                        let angle_step = *isometric::ISO_TO_SCREEN * movement_step.extend(0.0);
-
-                        let angle = angle_step.y.atan2(angle_step.x) / std::f32::consts::PI * 4.0;
-
-                        movement_step =
-                            movement_step.normalize() * movement_speed * time.delta_seconds();
-
-                        if angle < -3.5 {
-                            animator.set_playing("walk_left");
-                        } else if angle < -2.5 {
-                            animator.set_playing("walk_down_left");
-                        } else if angle < -1.5 {
-                            animator.set_playing("walk_down");
-                        } else if angle < -0.5 {
-                            animator.set_playing("walk_down_right");
-                        } else if angle < 0.5 {
-                            animator.set_playing("walk_right");
-                        } else if angle < 1.5 {
-                            animator.set_playing("walk_up_right");
-                        } else if angle < 2.5 {
-                            animator.set_playing("walk_up");
-                        } else if angle < 3.5 {
-                            animator.set_playing("walk_up_left");
-                        } else {
-                            animator.set_playing("walk_left");
-                        }
-
-                        position.position += movement_step.extend(0.0);
-                    }
+        if let Some(command) = command_queue.commands.back_mut() {
+            match command.execute(entity, &unit, &network_entity_registry, &command_query) {
+                CommandControlFlow::Wait => {
+                    // bib bob, do nothing
+                }
+                CommandControlFlow::Behaviour(new_behaviour) => {
+                    *behaviour = new_behaviour;
+                }
+                CommandControlFlow::Completed => {
+                    command_queue.commands.pop_back();
+                    *behaviour = Behaviour::Idle;
                 }
             }
-        }
-
-        if completed {
-            action_queue.actions.pop_back();
         }
     }
 }
@@ -212,11 +262,12 @@ impl Plugin for UnitPlugin {
         app_builder.add_asset::<Unit>();
 
         if self.0 {
-            app_builder.add_system(unit_action_execution_system.system());
-            app_builder.add_system(unit_size_system.system());
+            app_builder.add_system(unit_command_execution_system.system());
+            app_builder.add_system(unit_command_behaviour_system.system());
+            app_builder.add_system(unit_collision_system.system());
             app_builder.add_system(network_unit_action_system.system());
         } else {
-            app_builder.add_system(unit_action_system.system());
+            app_builder.add_system(unit_command_system.system());
             app_builder.add_system(unit_selection_system.system());
             app_builder.add_system(unit_selection_ring_system.system());
         }

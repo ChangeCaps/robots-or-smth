@@ -10,6 +10,7 @@ pub struct Selection {
 #[derive(Default)]
 pub struct SelectedUnits {
     pub units: HashSet<Entity>,
+    pub network_entities: HashSet<NetworkEntity>,
 }
 
 pub fn unit_selection_system(
@@ -22,7 +23,7 @@ pub fn unit_selection_system(
     keyboard_input: Res<Input<KeyCode>>,
     units: Res<Assets<Unit>>,
     player_id: Res<Option<PlayerId>>,
-    query: Query<(Entity, &Position, &Handle<Unit>, &Owner)>,
+    query: Query<(Entity, &Position, &Handle<Unit>, &Owner, &NetworkEntity)>,
 ) {
     if player_id.is_none() {
         return;
@@ -35,11 +36,17 @@ pub fn unit_selection_system(
         None => return,
     };
 
-    if mouse_input.just_pressed(MouseButton::Left) {
+    if input_config
+        .select
+        .just_pressed(&keyboard_input, &mouse_input)
+    {
         selection.box_select = mouse_position.position();
     }
 
-    if mouse_input.just_released(MouseButton::Left) {
+    if input_config
+        .select
+        .just_released(&keyboard_input, &mouse_input)
+    {
         let box_select = selection.box_select.distance(mouse_position.position()) > 5.0;
 
         let a = (*ISO_TO_SCREEN).transform_vector2(mouse_position.position());
@@ -48,11 +55,15 @@ pub fn unit_selection_system(
         let min = a.min(b);
         let max = a.max(b);
 
-        if !keyboard_input.pressed(input_config.add_to_selection) {
+        if !input_config
+            .add_to_selection
+            .pressed(&keyboard_input, &mouse_input)
+        {
             selected_units.units = HashSet::new();
+            selected_units.network_entities = HashSet::new();
         }
 
-        for (entity, position, unit_handle, owner) in query.iter() {
+        for (entity, position, unit_handle, owner, network_entity) in query.iter() {
             if owner.0 != player_id {
                 continue;
             }
@@ -62,6 +73,7 @@ pub fn unit_selection_system(
 
                 if position.truncate().cmpge(min).all() && position.truncate().cmple(max).all() {
                     selected_units.units.insert(entity);
+                    selected_units.network_entities.insert(*network_entity);
                 }
             } else {
                 let unit = units.get(unit_handle).unwrap();
@@ -71,6 +83,7 @@ pub fn unit_selection_system(
 
                 if dist <= unit.selection_size {
                     selected_units.units.insert(entity);
+                    selected_units.network_entities.insert(*network_entity);
                     return;
                 }
             }

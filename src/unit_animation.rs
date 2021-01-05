@@ -99,8 +99,13 @@ impl UnitAnimator {
 
     pub fn play(&mut self, name: impl Into<String>) {
         let name = name.into();
+
         self.current_animation = name;
         self.reset_animation = false;
+    }
+
+    pub fn playing(&self) -> &String {
+        &self.current_animation
     }
 
     pub fn set_playing(&mut self, name: impl Into<String>) {

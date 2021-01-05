@@ -1,5 +1,7 @@
 (
     size: 0.75,
+    width: 64.0,
+    height: 56.0,
     selection_size: 0.75,
     movement_priority: 4.0,
     movement_speed: FrameWise(
@@ -31,4 +33,5 @@
             1.2, // 23
         ]
     ),
+    max_health: 200.0,
 )

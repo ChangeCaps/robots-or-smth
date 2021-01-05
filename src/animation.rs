@@ -189,13 +189,21 @@ pub fn client_network_animator_system(
     network_entity_registry: Res<NetworkEntityRegistry>,
     mut query: Query<&mut Animator>,
 ) {
-    for (_handle, connection) in net.connections.iter_mut() {
+    for (handle, connection) in net.connections.iter_mut() {
         let channels = connection.channels().unwrap();
 
         while let Some(animator_message) = channels.recv::<AnimatorMessage>() {
-            let entity = network_entity_registry
-                .get(&animator_message.network_entity)
-                .unwrap();
+            let entity =
+                if let Some(e) = network_entity_registry.get(&animator_message.network_entity) {
+                    e
+                } else {
+                    warn!(
+                        "Recieved animation message for unregistered entity {}",
+                        handle
+                    );
+                    continue;
+                };
+
             let mut animator = query.get_mut(*entity).unwrap();
 
             animator.apply(animator_message.operation);

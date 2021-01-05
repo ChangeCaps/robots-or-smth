@@ -9,7 +9,12 @@ pub fn unit_collision_system(
     for a_entity in entities.iter() {
         let (a_position, a_priority, a_unit) = {
             let (position, behaviour, unit_handle) = query.get_mut(a_entity).unwrap();
-            let unit = units.get(&*unit_handle).unwrap();
+            let unit = if let Some(unit) = units.get(&*unit_handle) {
+                unit
+            } else {
+                warn!("Invalid handle to unit");
+                continue;
+            };
 
             let priority = if let Behaviour::Move { .. } = &*behaviour {
                 unit.movement_priority

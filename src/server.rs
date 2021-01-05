@@ -48,6 +48,9 @@ fn setup(
     server: Res<Server>,
     asset_server: Res<AssetServer>,
 ) {
+    // we store these so they wont be automatically freed
+    let handles = asset_server.load_folder(".").unwrap();
+    commands.insert_resource(handles);
     asset_server.watch_for_changes().unwrap();
 
     let map_handle: Handle<Map> = asset_server.load(server.map.as_str());

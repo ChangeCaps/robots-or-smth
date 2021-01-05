@@ -32,7 +32,7 @@ pub struct CommandQueue {
 }
 
 impl CommandQueue {
-    pub fn apply(&mut self, operation: CommandQueueOperation, unit: &Unit) {
+    pub fn apply(&mut self, operation: CommandQueueOperation) {
         match operation {
             CommandQueueOperation::AddCommand(action) => {
                 self.commands.push_front(action);
@@ -57,9 +57,37 @@ pub enum MovementSpeed {
 #[uuid = "ed8cb018-707f-4b10-959a-2f2920bb0d2a"]
 pub struct Unit {
     pub size: f32,
+    pub height: f32,
+    pub width: f32,
     pub selection_size: f32,
     pub movement_priority: f32,
     pub movement_speed: MovementSpeed,
+    pub max_health: f32,
+}
+
+impl Unit {
+    pub fn instance(&self) -> UnitInstance {
+        UnitInstance {
+            health: self.max_health,
+        }
+    }
+}
+
+pub struct HealthBar(pub Entity);
+
+pub struct UnitInstance {
+    pub health: f32,
+}
+
+fn unit_health_bar_system(
+    mut bar_query: Query<&mut Bar>,
+    query: Query<(&UnitInstance, &HealthBar), Changed<UnitInstance>>
+) {
+    for (unit_instance, health_bar) in query.iter() {
+        if let Ok(mut bar) = bar_query.get_mut(health_bar.0) {
+            bar.current_value = unit_instance.health;
+        }
+    }
 }
 
 fn operation(command: Box<dyn Command>, keyboard_input: &Input<KeyCode>) -> CommandQueueOperation {
@@ -187,10 +215,9 @@ pub fn unit_command_system(
 
 pub fn network_unit_action_system(
     mut net: ResMut<NetworkResource>,
-    units: Res<Assets<Unit>>,
     network_entity_registry: Res<NetworkEntityRegistry>,
     players: Res<Players>,
-    mut query: Query<(&mut CommandQueue, &Handle<Unit>, &Owner)>,
+    mut query: Query<(&mut CommandQueue, &Owner)>,
 ) {
     for (handle, connection) in net.connections.iter_mut() {
         let channels = connection.channels().unwrap();
@@ -199,7 +226,7 @@ pub fn network_unit_action_system(
             let entity = network_entity_registry
                 .get(&action_message.network_entity)
                 .unwrap();
-            let (mut action_queue, unit_handle, owner) = query.get_mut(*entity).unwrap();
+            let (mut action_queue, owner) = query.get_mut(*entity).unwrap();
 
             let player = players.player_ids.get(handle).unwrap();
 
@@ -208,8 +235,7 @@ pub fn network_unit_action_system(
                 continue;
             }
 
-            let unit = units.get(&*unit_handle).unwrap();
-            action_queue.apply(action_message.operation.clone(), unit);
+            action_queue.apply(action_message.operation.clone());
         }
     }
 }
@@ -221,7 +247,11 @@ pub fn unit_command_execution_system(
     mut query: Query<(Entity, &mut CommandQueue, &mut Behaviour, &Handle<Unit>)>,
 ) {
     for (entity, mut command_queue, mut behaviour, unit_handle) in query.iter_mut() {
-        let unit = units.get(&*unit_handle).unwrap();
+        let unit = if let Some(u) = units.get(&*unit_handle) {
+            u
+        } else {
+            continue;
+        };
 
         if let Some(command) = command_queue.commands.back_mut() {
             match command.execute(entity, &unit, &network_entity_registry, &command_query) {
@@ -270,6 +300,7 @@ impl Plugin for UnitPlugin {
             app_builder.add_system(unit_command_system.system());
             app_builder.add_system(unit_selection_system.system());
             app_builder.add_system(unit_selection_ring_system.system());
+            app_builder.add_system(unit_health_bar_system.system());
         }
     }
 }

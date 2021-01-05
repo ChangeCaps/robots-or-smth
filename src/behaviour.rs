@@ -1,15 +1,22 @@
 use crate::*;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Behaviour {
-    Move { target: Vec2 },
-    Attack,
+    Move {
+        target: Vec2,
+    },
+    Attack {
+        target: NetworkEntity,
+        damage: HashMap<u32, f32>,
+    },
     Idle,
 }
 
 pub fn unit_command_behaviour_system(
     time: Res<Time>,
     units: Res<Assets<Unit>>,
+    network_entity_registry: Res<NetworkEntityRegistry>,
     mut query: Query<(
         &Behaviour,
         &mut Position,
@@ -45,12 +52,24 @@ pub fn unit_command_behaviour_system(
 
                 let step = diff.normalize();
 
-                *direction = UnitDirection::from_vec2(step);
+                if dist > 0.0 {
+                    *direction = UnitDirection::from_vec2(step);
+                }
 
                 position.position += step.extend(0.0) * move_dist;
             }
-            Behaviour::Attack => {}
-            Behaviour::Idle => {}
+            Behaviour::Attack { target, damage } => {
+                if unit_animator.playing().as_str() != "attack" {
+                    unit_animator.play("attack");
+                }
+
+                if let Some(damage) = damage.get(&animator.current_frame()) {}
+            }
+            Behaviour::Idle => {
+                if unit_animator.playing().as_str() != "idle" {
+                    unit_animator.play("idle");
+                }
+            }
         }
     }
 }

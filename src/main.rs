@@ -1,5 +1,6 @@
 pub mod animation;
 pub mod asset_loading;
+pub mod bar;
 pub mod behaviour;
 mod client;
 pub mod command;
@@ -22,6 +23,7 @@ pub mod unit;
 pub mod unit_animation;
 pub mod unit_spawnable;
 
+pub use bar::*;
 pub use behaviour::*;
 pub use command::*;
 pub use map::*;

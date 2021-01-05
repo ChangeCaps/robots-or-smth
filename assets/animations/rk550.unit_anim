@@ -10,5 +10,15 @@ UnitAnimationSet(
             left: "walk_left",
             up_left: "walk_up_left",
         ),
+        "idle": UnitAnimation(
+            up: "idle_up",
+            up_right: "idle_up_right",
+            right: "idle_right",
+            down_right: "idle_down_right",
+            down: "idle_down",
+            down_left: "idle_down_left",
+            left: "idle_left",
+            up_left: "idle_up_left",
+        ),
     },
 )

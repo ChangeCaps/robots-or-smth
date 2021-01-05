@@ -96,7 +96,11 @@ fn camera_movement_system(
     mouse_position: Res<MousePosition>,
     mut query: Query<&mut Transform, With<bevy::render::camera::Camera>>,
 ) {
-    let input_config = input_config.get(&input_resource.0).unwrap();
+    let input_config = if let Some(i) = input_config.get(&input_resource.0) {
+        i
+    } else {
+        return;
+    };
 
     for mut transform in query.iter_mut() {
         let mp = mouse_position.normalized_screen_position();

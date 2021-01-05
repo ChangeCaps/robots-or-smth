@@ -5,10 +5,14 @@ use std::net::ToSocketAddrs;
 pub struct Client {
     #[clap(short, long, default_value = "mmo-tech.ddns.net:35566")]
     ip: String,
+    #[clap(long)]
+    free_cursor: bool,
 }
 
 impl Client {
     pub fn run(self) {
+        let grab_cursor = !self.free_cursor;
+
         App::build()
             // resources
             .init_resource::<SelectedUnits>()
@@ -17,7 +21,7 @@ impl Client {
             .add_resource(NetworkSettings::client())
             .add_resource(self)
             .add_resource(WindowDescriptor {
-                cursor_locked: true,
+                cursor_locked: grab_cursor,
                 mode: bevy::window::WindowMode::BorderlessFullscreen,
                 ..Default::default()
             })

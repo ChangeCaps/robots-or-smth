@@ -1,7 +1,7 @@
 Map(
     players: [
         PlayerId(0),
-        //PlayerId(1),
+        PlayerId(1),
     ],
     spawns: [
         {
@@ -31,7 +31,7 @@ Map(
             },
             {
                 "spawnable": "UnitSpawnable",
-                "owner": PlayerId(1),
+                "owner": PlayerId(0),
                 "position": (4.0, 5.0, 0.0),
                 "unit": "units/rk550.unit",
                 "animation_set": "animations/rk550.anim",
@@ -39,7 +39,7 @@ Map(
             },
             {
                 "spawnable": "UnitSpawnable",
-                "owner": PlayerId(1),
+                "owner": PlayerId(0),
                 "position": (3.0, 4.0, 0.0),
                 "unit": "units/rk550.unit",
                 "animation_set": "animations/rk550.anim",

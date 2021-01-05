@@ -1,84 +1,177 @@
 AnimationSet(
+	default_texture: 0,
+	animation_textures: {
+		0: AnimationTexture(
+			rows: 1,
+			columns: 192,
+			size: (96.0, 128.0),
+			path: "sprites/rk550_walk.png",
+		),
+		1: AnimationTexture(
+			rows: 1,
+			columns: 96,
+			size: (96.0, 128.0),
+			path: "sprites/rk550_idle.png",
+		),
+		2: AnimationTexture(
+			rows: 1,
+			columns: 144,
+			size: (96.0, 128.0),
+			path: "sprites/rk550_attack.png",
+		),
+	},
     animations: {
+		// walk
+
         "walk_up_left": Animation(
 			start: 0,
 			end: 23,
 			frame_length: 0.08,
+			texture: 0,
 		),
 		"walk_left": Animation(
 			start: 24,
 			end: 47,
 			frame_length: 0.08,
+			texture: 0,
 		),
 		"walk_down_left": Animation(
 			start: 48,
 			end: 71,
 			frame_length: 0.08,
+			texture: 0,
 		),
 		"walk_down": Animation(
 			start: 72,
 			end: 95,
 			frame_length: 0.08,
+			texture: 0,
 		),
 		"walk_down_right": Animation(
 			start: 96,
 			end: 119,
 			frame_length: 0.08,
+			texture: 0,
 		),
 		"walk_right": Animation(
 			start: 120,
 			end: 143,
 			frame_length: 0.08,
+			texture: 0,
 		),
 		"walk_up_right": Animation(
 			start: 144,
 			end: 167,
 			frame_length: 0.08,
+			texture: 0,
 		),
 		"walk_up": Animation(
 			start: 168,
 			end: 191,
 			frame_length: 0.08,
+			texture: 0,
 		),
+
+		// idle
+
 		"idle_up_left": Animation(
-			start: 192,
-			end: 203,
+			start: 0,
+			end: 11,
 			frame_length: 0.08,
+			texture: 1,
 		),
 		"idle_up": Animation(
-			start: 204,
-			end: 215,
+			start: 12,
+			end: 23,
 			frame_length: 0.08,
+			texture: 1,
 		),
 		"idle_up_right": Animation(
-			start: 216,
-			end: 227,
+			start: 24,
+			end: 35,
 			frame_length: 0.08,
+			texture: 1,
 		),
 		"idle_right": Animation(
-			start: 228,
-			end: 239,
+			start: 36,
+			end: 47,
 			frame_length: 0.08,
+			texture: 1,
 		),
 		"idle_down_right": Animation(
-			start: 240,
-			end: 251,
+			start: 48,
+			end: 59,
 			frame_length: 0.08,
+			texture: 1,
 		),
 		"idle_down": Animation(
-			start: 252,
-			end: 263,
+			start: 60,
+			end: 71,
 			frame_length: 0.08,
+			texture: 1,
 		),
 		"idle_down_left": Animation(
-			start: 264,
-			end: 275,
+			start: 72,
+			end: 83,
 			frame_length: 0.08,
+			texture: 1,
 		),
 		"idle_left": Animation(
-			start: 276,
-			end: 287,
+			start: 84,
+			end: 95,
 			frame_length: 0.08,
+			texture: 1,
+		),
+
+		// attack
+
+		"attack_up_left": Animation(
+			start: 0,
+			end: 17,
+			frame_length: 0.08,
+			texture: 2,
+		),
+		"attack_up": Animation(
+			start: 18,
+			end: 35,
+			frame_length: 0.08,
+			texture: 2,
+		),
+		"attack_up_right": Animation(
+			start: 36,
+			end: 53,
+			frame_length: 0.08,
+			texture: 2,
+		),
+		"attack_right": Animation(
+			start: 54,
+			end: 71,
+			frame_length: 0.08,
+			texture: 2,
+		),
+		"attack_down_right": Animation(
+			start: 72,
+			end: 89,
+			frame_length: 0.08,
+			texture: 2,
+		),
+		"attack_down": Animation(
+			start: 90,
+			end: 107,
+			frame_length: 0.08,
+			texture: 2,
+		),
+		"attack_down_left": Animation(
+			start: 108,
+			end: 125,
+			frame_length: 0.08,
+			texture: 2,
+		),
+		"attack_left": Animation(
+			start: 126,
+			end: 143,
+			frame_length: 0.08,
+			texture: 2,
 		),
     },
 )

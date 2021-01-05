@@ -16,6 +16,7 @@ pub struct Animation {
     start: u32,
     end: u32,
     frame_length: f32,
+    texture: u32,
 }
 
 impl Animation {
@@ -24,14 +25,25 @@ impl Animation {
             start: frames.start,
             end: frames.end,
             frame_length,
+            texture: 0,
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AnimationTexture {
+    pub rows: usize,
+    pub columns: usize,
+    pub size: Vec2,
+    pub path: String,
 }
 
 #[derive(TypeUuid, Serialize, Deserialize)]
 #[uuid = "53494558-e8f6-447f-94bc-7010a8979781"]
 pub struct AnimationSet {
-    animations: HashMap<String, Animation>,
+    pub default_texture: u32,
+    pub animation_textures: HashMap<u32, AnimationTexture>,
+    pub animations: HashMap<String, Animation>,
 }
 
 impl AnimationSet {
@@ -58,7 +70,10 @@ pub struct Animator {
     playing_animation: String,
     play_time: f32,
     current_frame: u32,
-    frame_set: bool,
+    #[reflect(ignore)]
+    current_frame_set: bool,
+    #[reflect(ignore)]
+    current_frame_changed: bool,
     #[reflect(ignore)]
     operations: Vec<AnimatorOperation>,
 }
@@ -70,7 +85,8 @@ impl Animator {
             playing_animation: playing_animation.into(),
             play_time: 0.0,
             current_frame: 0,
-            frame_set: false,
+            current_frame_set: false,
+            current_frame_changed: true,
             operations: Vec::new(),
         }
     }
@@ -80,6 +96,7 @@ impl Animator {
         self.playing_animation = name.clone();
         self.play_time = 0.0;
         self.current_frame = 0;
+        self.current_frame_changed = true;
         self.operations.push(AnimatorOperation::Play(name));
     }
 
@@ -104,8 +121,15 @@ impl Animator {
     }
 
     pub fn set_current_frame(&mut self, frame: u32) {
-        self.current_frame = frame;
-        self.frame_set = true;
+        if frame != self.current_frame() {
+            self.current_frame = frame;
+            self.current_frame_set = true;
+            self.current_frame_changed = true;
+        }
+    }
+
+    pub fn frame_just_changed(&self) -> bool {
+        self.current_frame_changed
     }
 
     pub fn apply(&mut self, message: AnimatorOperation) {
@@ -134,22 +158,30 @@ pub fn animator_system(
             playing_animation,
             play_time,
             current_frame,
-            frame_set,
+            current_frame_set,
+            current_frame_changed,
             ..
         } = &mut *animator;
 
         if let Some(animation_set) = animation_sets.get(animation_set.clone()) {
             if let Some(animation) = animation_set.get(&*playing_animation) {
-                if *frame_set {
-                    *frame_set = false;
+                *current_frame_changed = false;
+
+                if *current_frame_set {
+                    *current_frame_set = false;
 
                     *play_time = *current_frame as f32 * animation.frame_length;
                 }
 
                 *play_time += time.delta_seconds();
 
-                *current_frame = (*play_time / animation.frame_length).floor() as u32
+                let new_frame = (*play_time / animation.frame_length).floor() as u32
                     % (animation.end - animation.start + 1);
+
+                if new_frame != *current_frame {
+                    *current_frame = new_frame;
+                    *current_frame_changed = true;
+                }
             }
         }
     }
@@ -157,13 +189,35 @@ pub fn animator_system(
 
 pub fn animator_sprite_system(
     animation_sets: Res<Assets<AnimationSet>>,
-    mut query: Query<(&Animator, &mut TextureAtlasSprite)>,
+    textures: Res<Assets<Texture>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut query: Query<(&Animator, &mut TextureAtlasSprite, &Handle<TextureAtlas>)>,
 ) {
-    for (animator, mut sprite) in query.iter_mut() {
+    for (animator, mut sprite, texture_atlas_handle) in query.iter_mut() {
         if let Some(animation_set) = animation_sets.get(&animator.animation_set) {
             if let Some(animation) = animation_set.get(&animator.playing_animation) {
-                sprite.index = animator.current_frame() + animation.start;
+                if let Some(animation_texture) =
+                    animation_set.animation_textures.get(&animation.texture)
+                {
+                    let texture_atlas = texture_atlases.get_mut(&*texture_atlas_handle).unwrap();
+
+                    // TODO: optimize, dont set on every update for every unit
+                    *texture_atlas = TextureAtlas::from_grid(
+                        textures.get_handle(animation_texture.path.as_str()),
+                        animation_texture.size,
+                        animation_texture.columns,
+                        animation_texture.rows,
+                    );
+
+                    sprite.index = animator.current_frame() + animation.start;
+                } else {
+                    error!("AnimationTexture not found");
+                }
+            } else {
+                error!("Animation not found");
             }
+        } else {
+            error!("AnimationSet not found");
         }
     }
 }

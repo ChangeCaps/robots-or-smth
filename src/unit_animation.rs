@@ -101,7 +101,7 @@ impl UnitAnimator {
         let name = name.into();
 
         self.current_animation = name;
-        self.reset_animation = false;
+        self.reset_animation = true;
     }
 
     pub fn playing(&self) -> &String {

@@ -17,8 +17,8 @@ pub mod server;
 pub mod size;
 pub mod spawnable;
 pub mod sprite_shader;
+pub mod tile_map;
 pub mod tile_map_spawnable;
-pub mod tilemap;
 pub mod unit;
 pub mod unit_animation;
 pub mod unit_spawnable;
@@ -51,7 +51,7 @@ pub use serde::{Deserialize, Serialize};
 pub use server::*;
 pub use size::*;
 pub use spawnable::*;
-pub use tilemap::*;
+pub use tile_map::*;
 pub use unit::*;
 
 #[derive(Clap)]

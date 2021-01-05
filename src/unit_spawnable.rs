@@ -7,7 +7,6 @@ pub struct UnitSpawnable {
     pub position: Vec3,
     pub owner: PlayerId,
     pub unit: String,
-    pub texture: String,
     pub animation_set: String,
     pub unit_animation_set: String,
 }
@@ -22,13 +21,15 @@ impl Spawnable for UnitSpawnable {
 
         let unit_handle = units.get_handle(self.unit.as_str());
         let unit = units.get(&unit_handle).unwrap();
-        let animation_set = animation_sets.get_handle(self.animation_set.as_str());
+        let animation_set_handle = animation_sets.get_handle(self.animation_set.as_str());
+        let animation_set = animation_sets.get(&animation_set_handle).unwrap();
 
-        let animator = Animator::new(animation_set, "idle_up");
+        let animator = Animator::new(animation_set_handle, "idle_up");
 
         commands
             .spawn((CommandQueue {
                 commands: VecDeque::new(),
+                request_set: None,
             },))
             .with(Behaviour::Idle)
             .with(animator)
@@ -53,9 +54,16 @@ impl Spawnable for UnitSpawnable {
             let mut texture_atlases = resources.get_mut::<Assets<TextureAtlas>>().unwrap();
             let mut color_materials = resources.get_mut::<Assets<ColorMaterial>>().unwrap();
 
-            let texture = textures.get_handle(self.texture.as_str());
-            let texture_atlas =
-                TextureAtlas::from_grid(texture, Vec2::new(96.0, 128.0), 24 * 12, 1);
+            let animation_texture =
+                &animation_set.animation_textures[&animation_set.default_texture];
+
+            let texture = textures.get_handle(animation_texture.path.as_str());
+            let texture_atlas = TextureAtlas::from_grid(
+                texture,
+                animation_texture.size,
+                animation_texture.columns,
+                animation_texture.rows,
+            );
             let selection_circle = textures.get_handle("sprites/selection.png");
 
             commands
@@ -70,6 +78,7 @@ impl Spawnable for UnitSpawnable {
                     )]),
                     ..Default::default()
                 })
+                .with(HealthBar(1))
                 .with_children(|parent| {
                     parent.spawn(SpriteBundle {
                         material: color_materials.add(selection_circle.into()),
@@ -79,18 +88,21 @@ impl Spawnable for UnitSpawnable {
                         ..Default::default()
                     });
 
-                    let health_bar_entity = parent.spawn(BarBundle {
-                        bar: Bar {
-                            size: Vec2::new(unit.width, 8.0),
-                            max_value: unit.max_health,
-                            current_value: unit.max_health,
+                    parent
+                        .spawn(BarBundle {
+                            bar: Bar {
+                                size: Vec2::new(unit.width, 6.0),
+                                max_value: unit.max_health,
+                                current_value: unit.max_health,
+                                ..Default::default()
+                            },
+                            transform: Transform::from_translation(Vec3::new(
+                                0.0,
+                                unit.height + 16.0,
+                                0.0,
+                            )),
                             ..Default::default()
-                        },
-                        transform: Transform::from_translation(Vec3::new(0.0, unit.height + 16.0, 0.0)),
-                        ..Default::default()
-                    }).current_entity().unwrap();
-
-                    parent.with(HealthBar(health_bar_entity));
+                        });
                 });
         }
 

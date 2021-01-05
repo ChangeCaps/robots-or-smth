@@ -43,6 +43,10 @@ impl NetworkEntityRegistry {
         self.entities.insert(network_entity, entity);
         network_entity
     }
+
+    pub fn remove(&mut self, network_entity: &NetworkEntity) {
+        self.entities.remove(&network_entity);
+    }
 }
 
 #[derive(bevy::reflect::TypeUuid)]
@@ -89,6 +93,10 @@ pub fn network_setup(mut net: ResMut<NetworkResource>) {
 
         builder
             .register::<PositionMessage>(POSITION_MESSAGE_SETTINGS)
+            .unwrap();
+
+        builder
+            .register::<UnitInstanceMessage>(UNIT_INSTANCE_MESSAGE_SETTINGS)
             .unwrap();
     });
 }
@@ -166,6 +174,27 @@ const ACTION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
 const POSITION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 4,
     channel_mode: MessageChannelMode::Unreliable,
+    message_buffer_size: 64,
+    packet_buffer_size: 64,
+};
+
+const UNIT_INSTANCE_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
+    channel: 5,
+    channel_mode: MessageChannelMode::Reliable {
+        reliability_settings: ReliableChannelSettings {
+            bandwidth: 4096,
+            recv_window_size: 1024,
+            send_window_size: 1024,
+            burst_bandwidth: 1024,
+            init_send: 512,
+            wakeup_time: Duration::from_millis(100),
+            initial_rtt: Duration::from_millis(200),
+            max_rtt: Duration::from_secs(2),
+            rtt_update_factor: 0.1,
+            rtt_resend_factor: 1.5,
+        },
+        max_message_len: 1024,
+    },
     message_buffer_size: 64,
     packet_buffer_size: 64,
 };

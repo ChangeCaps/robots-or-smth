@@ -7,7 +7,8 @@ pub enum Behaviour {
         target: Vec2,
     },
     Attack {
-        target: NetworkEntity,
+        target_position: Vec2,
+        target: Entity,
         damage: HashMap<u32, f32>,
     },
     Idle,
@@ -17,6 +18,7 @@ pub fn unit_command_behaviour_system(
     time: Res<Time>,
     units: Res<Assets<Unit>>,
     network_entity_registry: Res<NetworkEntityRegistry>,
+    mut unit_instance_query: Query<&mut UnitInstance>,
     mut query: Query<(
         &Behaviour,
         &mut Position,
@@ -26,8 +28,14 @@ pub fn unit_command_behaviour_system(
         &mut UnitDirection,
     )>,
 ) {
-    for (behaviour, mut position, animator, mut unit_animator, unit_handle, mut direction) in
-        query.iter_mut()
+    for (
+        behaviour,
+        mut position,
+        animator,
+        mut unit_animator,
+        unit_handle,
+        mut direction,
+    ) in query.iter_mut()
     {
         match behaviour {
             Behaviour::Move { target } => {
@@ -58,12 +66,28 @@ pub fn unit_command_behaviour_system(
 
                 position.position += step.extend(0.0) * move_dist;
             }
-            Behaviour::Attack { target, damage } => {
+            Behaviour::Attack {
+                target_position,
+                target,
+                damage,
+            } => {
+                let diff = *target_position - position.position.truncate();
+
+                let unit_direction = UnitDirection::from_vec2(diff);
+
+                *direction = unit_direction;
+
                 if unit_animator.playing().as_str() != "attack" {
                     unit_animator.play("attack");
                 }
 
-                if let Some(damage) = damage.get(&animator.current_frame()) {}
+                if animator.frame_just_changed() {
+                    if let Some(damage) = damage.get(&animator.current_frame()) {
+                        if let Ok(mut unit_instance) = unit_instance_query.get_mut(*target) {
+                            unit_instance.subtract_health(*damage);
+                        }
+                    }
+                }
             }
             Behaviour::Idle => {
                 if unit_animator.playing().as_str() != "idle" {

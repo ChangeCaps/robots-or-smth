@@ -12,8 +12,9 @@ pub trait Command: std::fmt::Debug + CommandClone + Send + Sync + 'static {
         &mut self,
         entity: Entity,
         unit: &Unit,
+        request_cancel: bool,
         network_entity_registry: &NetworkEntityRegistry,
-        query: &Query<(&Position)>,
+        query: &Query<(&Position, &Animator)>,
     ) -> CommandControlFlow;
 }
 
@@ -34,39 +35,34 @@ impl Clone for Box<dyn Command> {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MoveCommand {
-    pub target: CommandTarget,
+pub struct MovePositionCommand {
+    pub target: Vec2,
     pub precise: bool,
 }
 
 #[typetag::serde]
-impl Command for MoveCommand {
+impl Command for MovePositionCommand {
     fn execute(
         &mut self,
         entity: Entity,
         unit: &Unit,
+        request_cancel: bool,
         network_entity_registry: &NetworkEntityRegistry,
-        query: &Query<(&Position)>,
+        query: &Query<(&Position, &Animator)>,
     ) -> CommandControlFlow {
-        let target_position = match &self.target {
-            CommandTarget::Position(p) => *p,
-            CommandTarget::Unit(n) => {
-                let entity = network_entity_registry.get(n).unwrap();
-                let position = query.get(*entity).unwrap();
+        if request_cancel {
+            return CommandControlFlow::Completed;
+        }
 
-                position.position.truncate()
-            }
-        };
-
-        let position = query.get(entity).unwrap();
-        let dist = (target_position - position.position.truncate()).length();
+        let (position, _) = query.get(entity).unwrap();
+        let dist = (self.target - position.position.truncate()).length();
 
         if self.precise {
             if dist < 0.1 {
                 CommandControlFlow::Completed
             } else {
                 CommandControlFlow::Behaviour(Behaviour::Move {
-                    target: target_position.clone(),
+                    target: self.target,
                 })
             }
         } else {
@@ -74,9 +70,97 @@ impl Command for MoveCommand {
                 CommandControlFlow::Completed
             } else {
                 CommandControlFlow::Behaviour(Behaviour::Move {
-                    target: target_position.clone(),
+                    target: self.target,
                 })
             }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MoveUnitCommand {
+    pub target: NetworkEntity,
+}
+
+#[typetag::serde]
+impl Command for MoveUnitCommand {
+    fn execute(
+        &mut self,
+        _entity: Entity,
+        _unit: &Unit,
+        request_cancel: bool,
+        network_entity_registry: &NetworkEntityRegistry,
+        query: &Query<(&Position, &Animator)>,
+    ) -> CommandControlFlow {
+        if request_cancel {
+            return CommandControlFlow::Completed;
+        }
+
+        match network_entity_registry.get(&self.target) {
+            Some(target_entity) => {
+                let (target_position, _) = query.get(*target_entity).unwrap();
+
+                CommandControlFlow::Behaviour(Behaviour::Move {
+                    target: target_position.position.truncate(),
+                })
+            }
+            None => CommandControlFlow::Completed,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AttackUnitCommand {
+    pub target: NetworkEntity,
+}
+
+#[typetag::serde]
+impl Command for AttackUnitCommand {
+    fn execute(
+        &mut self,
+        entity: Entity,
+        unit: &Unit,
+        request_cancel: bool,
+        network_entity_registry: &NetworkEntityRegistry,
+        query: &Query<(&Position, &Animator)>,
+    ) -> CommandControlFlow {
+        match network_entity_registry.get(&self.target) {
+            Some(target) => {
+                let (position, animator) = query.get(entity).unwrap();
+                let (target_position, _) = query.get(*target).unwrap();
+
+                let diff = position.position.truncate() - target_position.position.truncate();
+                let dist = diff.length();
+
+                if dist > unit.soft_attack_range {
+                    if request_cancel {
+                        CommandControlFlow::Completed     
+                    } else {
+                        CommandControlFlow::Behaviour(Behaviour::Move {
+                            target: target_position.position.truncate(),
+                        })
+                    }
+                } else {
+                    if request_cancel && animator.current_frame() == 0 {
+                        CommandControlFlow::Completed
+                    } else {
+                        CommandControlFlow::Behaviour(Behaviour::Attack {
+                            target_position: target_position.position.truncate(),
+                            target: *target,
+                            damage: unit.attack_damage_frames.clone(),
+                        })
+                    }
+                }
+            }
+            None => {
+                let (_, animator) = query.get(entity).unwrap();
+
+                if animator.current_frame() == 0 {
+                    CommandControlFlow::Completed
+                } else {
+                    CommandControlFlow::Wait
+                }
+            },
         }
     }
 }

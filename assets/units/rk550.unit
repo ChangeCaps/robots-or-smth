@@ -4,6 +4,12 @@
     height: 56.0,
     selection_size: 0.75,
     movement_priority: 4.0,
+    max_health: 200.0,
+    soft_attack_range: 8.0,
+    hard_attack_range: 9.0,
+    attack_damage_frames: {
+        3: 70.0,
+    },
     movement_speed: FrameWise(
         speed: 1.0,
         frame_mods: [
@@ -33,5 +39,4 @@
             1.2, // 23
         ]
     ),
-    max_health: 200.0,
 )

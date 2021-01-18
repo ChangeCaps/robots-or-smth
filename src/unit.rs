@@ -1,10 +1,6 @@
 use crate::*;
 use bevy::prelude::*;
-use bevy::{
-    asset::{AssetLoader, LoadContext, LoadedAsset},
-    reflect::TypeUuid,
-    utils::BoxedFuture,
-};
+use bevy::reflect::TypeUuid;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 
@@ -17,39 +13,91 @@ pub enum CommandTarget {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CommandQueueOperation {
-    AddCommand(Box<dyn Command>),
-    SetCommand(Box<dyn Command>),
+    AddCommand(Command),
+    SetCommand(Command),
     ClearCommands,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CommandMessage {
-    operation: CommandQueueOperation,
-    network_entity: NetworkEntity,
+    pub operation: CommandQueueOperation,
+    pub network_entity: NetworkEntity,
 }
 
+/// A list of [`Command`]s, an instance of which exists for every unit.
+/// The unit will automatically go through every command in the queue, until it's empty.
+/// When the [`CommandQueue`] is *locked*, [`Command`]s can only be added,
+/// if set_command is tried, it will in stead be put into *awaiting*,
+/// and the queue will only be set when *unlocked* again.
 pub struct CommandQueue {
-    pub commands: VecDeque<Box<dyn Command>>,
-    pub request_set: Option<Box<dyn Command>>,
+    commands: VecDeque<Command>,
+    locked: bool,
+    awaiting: Option<Command>,
 }
 
 impl CommandQueue {
+    pub fn new() -> Self {
+        Self {
+            commands: VecDeque::new(),
+            locked: false,
+            awaiting: None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.commands.is_empty()
+    }
+
+    pub fn current(&self) -> Option<&Command> {
+        self.commands.back()
+    }
+
+    pub fn current_mut(&mut self) -> Option<&mut Command> {
+        self.commands.back_mut()
+    }
+
+    pub fn add_command(&mut self, command: Command) {
+        self.commands.push_front(command);
+    }
+
+    pub fn set_command(&mut self, command: Command) {
+        if self.locked {
+            self.awaiting = Some(command);
+        } else {
+            self.commands = vec![command].into();
+        }
+    }
+
     pub fn apply(&mut self, operation: CommandQueueOperation) {
         match operation {
             CommandQueueOperation::AddCommand(command) => {
                 self.commands.push_front(command);
             }
             CommandQueueOperation::SetCommand(command) => {
-                if self.commands.len() == 0 {
-                    self.commands.push_front(command);
-                } else {
-                    self.request_set = Some(command);
-                }
+                self.set_command(command);
             }
             CommandQueueOperation::ClearCommands => {
                 self.commands.clear();
             }
         }
+    }
+
+    pub fn lock(&mut self) {
+        self.locked = true;
+    }
+
+    pub fn unlock(&mut self) {
+        self.locked = false;
+
+        if let Some(awaiting) = std::mem::replace(&mut self.awaiting, None) {
+            self.commands = vec![awaiting].into();
+        }
+    }
+
+    /// Completes the current [`Command`], and unlocks the *self*.
+    pub fn complete(&mut self) {
+        self.commands.pop_front();
+        self.unlock();
     }
 }
 
@@ -62,15 +110,16 @@ pub enum MovementSpeed {
 #[derive(TypeUuid, Serialize, Deserialize)]
 #[uuid = "ed8cb018-707f-4b10-959a-2f2920bb0d2a"]
 pub struct Unit {
+    pub animation_set: String,
+    pub unit_animation_set: String,
     pub size: f32,
     pub height: f32,
     pub width: f32,
     pub selection_size: f32,
     pub movement_priority: f32,
-    pub soft_attack_range: f32,
-    pub hard_attack_range: f32,
+    /// Attacks are optional
+    pub attack: Option<Attack>,
     pub movement_speed: MovementSpeed,
-    pub attack_damage_frames: HashMap<u32, f32>,
     pub max_health: f32,
 }
 
@@ -78,6 +127,7 @@ impl Unit {
     pub fn instance(&self) -> UnitInstance {
         UnitInstance {
             health: self.max_health,
+            movement: None,
             operations: Vec::new(),
         }
     }
@@ -99,6 +149,7 @@ pub struct UnitInstanceMessage {
 
 pub struct UnitInstance {
     pub health: f32,
+    pub movement: Option<Vec2>,
     pub operations: Vec<UnitInstanceOperation>,
 }
 
@@ -125,7 +176,7 @@ impl UnitInstance {
     pub fn set_health(&mut self, damage: f32) {
         self.operation(UnitInstanceOperation::SetHealth(damage));
     }
-    
+
     pub fn subtract_health(&mut self, damage: f32) {
         self.operation(UnitInstanceOperation::SubtractHealth(damage));
     }
@@ -140,7 +191,9 @@ fn client_unit_instance_system(
         let channels = connection.channels().unwrap();
 
         while let Some(unit_instance_message) = channels.recv::<UnitInstanceMessage>() {
-            let entity = network_entity_registry.get(&unit_instance_message.target).unwrap();
+            let entity = network_entity_registry
+                .get(&unit_instance_message.target)
+                .unwrap();
 
             info!("{:?}", unit_instance_message);
 
@@ -165,7 +218,7 @@ fn server_unit_instance_system(
                 operation,
                 target: *network_entity,
             };
-    
+
             net.broadcast_message(message);
         }
     }
@@ -211,7 +264,7 @@ fn server_unit_health_system(
     }
 }
 
-fn operation(command: Box<dyn Command>, keyboard_input: &Input<KeyCode>) -> CommandQueueOperation {
+fn operation(command: Command, keyboard_input: &Input<KeyCode>) -> CommandQueueOperation {
     match () {
         _ if keyboard_input.pressed(KeyCode::LShift) => CommandQueueOperation::AddCommand(command),
         _ => CommandQueueOperation::SetCommand(command),
@@ -256,17 +309,37 @@ pub fn unit_command_system(
         }
     }
 
+    let move_command = input_config
+        .move_command
+        .just_pressed(&keyboard_input, &mouse_input);
+
+    let attack_move = input_config
+        .attack_move_command
+        .just_pressed(&keyboard_input, &mouse_input);
+
     match () {
-        _ if input_config
-            .move_command
-            .just_pressed(&keyboard_input, &mouse_input) =>
-        {
+        _ if move_command || attack_move => {
             match target {
                 CommandTarget::Ally(target) => {
                     for network_entity in &selected_units.network_entities {
+                        if attack_move && target == *network_entity {
+                            continue;
+                        }
+
                         let message = CommandMessage {
                             operation: operation(
-                                Box::new(MoveUnitCommand { target }),
+                                if attack_move {
+                                    Command::Attack {
+                                        target_position: None,
+                                        target_unit: Some(target),
+                                        persue: true,
+                                    }
+                                } else {
+                                    Command::Move {
+                                        target: CommandTarget::Ally(target),
+                                        precise: selected_units.network_entities.len() == 1,
+                                    }
+                                },
                                 &keyboard_input,
                             ),
                             network_entity: *network_entity,
@@ -279,7 +352,11 @@ pub fn unit_command_system(
                     for network_entity in &selected_units.network_entities {
                         let message = CommandMessage {
                             operation: operation(
-                                Box::new(AttackUnitCommand { target }),
+                                Command::Attack {
+                                    target_position: None,
+                                    target_unit: Some(target),
+                                    persue: true,
+                                },
                                 &keyboard_input,
                             ),
                             network_entity: *network_entity,
@@ -334,13 +411,23 @@ pub fn unit_command_system(
 
                             let relative_position = position.position.truncate() - center_of_mass;
 
-                            let command = MovePositionCommand {
-                                target: target_position + relative_position,
-                                precise: true,
+                            let command = if attack_move {
+                                Command::Attack {
+                                    target_position: Some(target_position + relative_position),
+                                    target_unit: None,
+                                    persue: true,
+                                }
+                            } else {
+                                Command::Move {
+                                    target: CommandTarget::Position(
+                                        target_position + relative_position,
+                                    ),
+                                    precise: true,
+                                }
                             };
 
                             let message = CommandMessage {
-                                operation: operation(Box::new(command.clone()), &keyboard_input),
+                                operation: operation(command.clone(), &keyboard_input),
                                 network_entity: *network_entity,
                             };
 
@@ -350,10 +437,18 @@ pub fn unit_command_system(
                         for network_entity in &selected_units.network_entities {
                             let message = CommandMessage {
                                 operation: operation(
-                                    Box::new(MovePositionCommand {
-                                        target: target_position,
-                                        precise: false,
-                                    }),
+                                    if attack_move {
+                                        Command::Attack {
+                                            target_position: Some(target_position),
+                                            target_unit: None,
+                                            persue: true,
+                                        }
+                                    } else {
+                                        Command::Move {
+                                            target: CommandTarget::Position(target_position),
+                                            precise: false,
+                                        }
+                                    },
                                     &keyboard_input,
                                 ),
                                 network_entity: *network_entity,
@@ -379,9 +474,13 @@ pub fn network_unit_action_system(
         let channels = connection.channels().unwrap();
 
         while let Some(action_message) = channels.recv::<CommandMessage>() {
-            let entity = network_entity_registry
-                .get(&action_message.network_entity)
-                .unwrap();
+            let entity =
+                if let Some(e) = network_entity_registry.get(&action_message.network_entity) {
+                    e
+                } else {
+                    continue;
+                };
+
             let (mut action_queue, owner) = query.get_mut(*entity).unwrap();
 
             let player = players.player_ids.get(handle).unwrap();
@@ -392,43 +491,6 @@ pub fn network_unit_action_system(
             }
 
             action_queue.apply(action_message.operation.clone());
-        }
-    }
-}
-
-pub fn unit_command_execution_system(
-    units: Res<Assets<Unit>>,
-    network_entity_registry: Res<NetworkEntityRegistry>,
-    command_query: Query<(&Position, &Animator)>,
-    mut query: Query<(Entity, &mut CommandQueue, &mut Behaviour, &Handle<Unit>)>,
-) {
-    for (entity, mut command_queue, mut behaviour, unit_handle) in query.iter_mut() {
-        let unit = if let Some(u) = units.get(&*unit_handle) {
-            u
-        } else {
-            continue;
-        };
-
-        let request_set = command_queue.request_set.is_some();
-        if let Some(command) = command_queue.commands.back_mut() {
-            match command.execute(entity, &unit, request_set, &network_entity_registry, &command_query) {
-                CommandControlFlow::Wait => {
-                    // bib bob, do nothing
-                }
-                CommandControlFlow::Behaviour(new_behaviour) => {
-                    *behaviour = new_behaviour;
-                }
-                CommandControlFlow::Completed => {
-                    if request_set {
-                        let command = std::mem::replace(&mut command_queue.request_set, None).unwrap();
-
-                        command_queue.commands = vec![command].into();
-                    } else {
-                        command_queue.commands.pop_back();
-                        *behaviour = Behaviour::Idle;
-                    }
-                }
-            }
         }
     }
 }
@@ -453,14 +515,16 @@ impl Plugin for UnitPlugin {
     fn build(&self, app_builder: &mut AppBuilder) {
         app_builder.add_asset_loader(UnitLoader);
         app_builder.add_asset::<Unit>();
-        
+
         if self.0 {
-            app_builder.add_system(unit_command_execution_system.system());
-            app_builder.add_system(unit_command_behaviour_system.system());
+            app_builder.add_system(attack_command_system.system());
+            app_builder.add_system(move_command_system.system());
+            app_builder.add_system(idle_command_system.system());
             app_builder.add_system(unit_collision_system.system());
             app_builder.add_system(network_unit_action_system.system());
             app_builder.add_system(server_unit_instance_system.system());
             app_builder.add_system(server_unit_health_system.system());
+            app_builder.add_system(unit_movement_system.system());
         } else {
             app_builder.add_system(unit_command_system.system());
             app_builder.add_system(unit_selection_system.system());

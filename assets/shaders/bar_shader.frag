@@ -5,32 +5,15 @@ layout(location = 1) in vec2 v_Pos;
 
 layout(location = 0) out vec4 o_Target;
 
-layout(set = 1, binding = 0) uniform Bar_size {
+layout(set = 1, binding = 1) uniform Bar {
     vec2 size;
-};
-
-layout(set = 1, binding = 1) uniform Bar_max_value {
-    float max_value;
-};
-
-layout(set = 1, binding = 2) uniform Bar_current_value {
-    float current_value;
-};
-
-layout(set = 1, binding = 3) uniform Bar_border_thickness {
-    float border_thickness;
-};
-
-layout(set = 1, binding = 4) uniform Bar_background_color {
+    vec4 border_color;
     vec4 background_color;
-};
-
-layout(set = 1, binding = 5) uniform Bar_color_a {
     vec4 color_a;
-};
-
-layout(set = 1, binding = 6) uniform Bar_color_b {
     vec4 color_b;
+    float border_thickness;
+    float max_value;
+    float current_value;
 };
 
 void main() {
@@ -40,7 +23,9 @@ void main() {
 
     vec2 border = size / 2.0 - border_thickness;
 
-    if (prog > current_value || abs(v_Pos).x > border.x || abs(v_Pos).y > border.y) {
+    if (abs(v_Pos).x > border.x || abs(v_Pos).y > border.y) {
+        color = border_color;
+    } else if (prog > current_value) {
         color = background_color;
     } else {
         if (v_Uv.y < 0.4) { 

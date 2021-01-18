@@ -31,4 +31,9 @@ UnitAnimationSet(
             up_left: "attack_up_left",
         ),
     },
+    sounds: {
+        "attack": {
+            3: "sound/rk550_attack.mp3",
+        },
+    },
 )

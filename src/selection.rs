@@ -5,7 +5,10 @@ use std::collections::HashSet;
 #[derive(Default)]
 pub struct Selection {
     pub box_select: Vec2,
+    pub box_select_screen: Vec2,
 }
+
+pub struct SelectionBox(pub Entity);
 
 #[derive(Default)]
 pub struct SelectedUnits {
@@ -16,6 +19,7 @@ pub struct SelectedUnits {
 pub fn unit_selection_system(
     mut selected_units: ResMut<SelectedUnits>,
     mut selection: Local<Selection>,
+    selection_box: Res<SelectionBox>,
     input_config: Res<Assets<InputConfig>>,
     input_resource: Res<InputResource>,
     mouse_position: Res<MousePosition>,
@@ -23,6 +27,7 @@ pub fn unit_selection_system(
     keyboard_input: Res<Input<KeyCode>>,
     units: Res<Assets<Unit>>,
     player_id: Res<Option<PlayerId>>,
+    mut style_query: Query<(&mut Transform, &mut Sprite, &mut Visible)>,
     query: Query<(Entity, &Position, &Handle<Unit>, &Owner, &NetworkEntity)>,
 ) {
     if player_id.is_none() {
@@ -41,12 +46,33 @@ pub fn unit_selection_system(
         .just_pressed(&keyboard_input, &mouse_input)
     {
         selection.box_select = mouse_position.position();
+        selection.box_select_screen = mouse_position.world_position();
+    }
+
+    if input_config.select.pressed(&keyboard_input, &mouse_input) {
+        let a = mouse_position.world_position();
+        let b = selection.box_select_screen;
+
+        let min = a.min(b);
+        let max = a.max(b);
+
+        let size = max - min;
+
+        let (mut transform, mut sprite, mut visible) =
+            style_query.get_mut(selection_box.0).unwrap();
+
+        visible.is_visible = (max - min).length() > 5.0;
+
+        transform.translation = ((min + max) / 2.0).extend(450.0);
+        sprite.size = size;
     }
 
     if input_config
         .select
         .just_released(&keyboard_input, &mouse_input)
     {
+        style_query.get_mut(selection_box.0).unwrap().2.is_visible = false;
+
         let box_select = selection.box_select.distance(mouse_position.position()) > 5.0;
 
         let a = (*ISO_TO_SCREEN).transform_vector2(mouse_position.position());

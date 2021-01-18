@@ -30,6 +30,11 @@ impl AssetLoader for SpawnableLoader {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct SpawnMessage {
+    network_spawners: Vec<NetworkSpawner>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct NetworkSpawner {
     spawnable: Box<dyn Spawnable>,
     entity: NetworkEntity,
 }
@@ -51,7 +56,7 @@ impl Clone for Box<dyn Spawnable> {
 }
 
 #[typetag::serde]
-impl Spawnable for SpawnMessage {
+impl Spawnable for NetworkSpawner {
     fn spawn(&self, commands: &mut Commands, resources: &Resources) -> Entity {
         let entity = self.spawnable.spawn(commands, resources);
 
@@ -118,6 +123,8 @@ pub fn spawn_system(world: &mut World, resources: &mut Resources) {
         let network_settings = resources.get::<NetworkSettings>().unwrap();
         let mut net = resources.get_mut::<NetworkResource>().unwrap();
 
+        let mut spawners = Vec::new();
+
         for spawnable in spawn_resource.clear() {
             let network_entity = {
                 let mut network_entity_registry =
@@ -125,19 +132,27 @@ pub fn spawn_system(world: &mut World, resources: &mut Resources) {
                 network_entity_registry.generate_entity()
             };
 
-            let message = SpawnMessage {
+            let spawner = NetworkSpawner {
                 spawnable,
                 entity: network_entity,
             };
 
-            let entity = message.spawn(&mut commands, resources);
-
-            if network_settings.is_server {
-                net.broadcast_message(message);
-            }
+            let entity = spawner.spawn(&mut commands, resources);
 
             let mut network_entity_registry = resources.get_mut::<NetworkEntityRegistry>().unwrap();
             network_entity_registry.insert(network_entity, entity);
+
+            spawners.push(spawner);
+        }
+
+        if network_settings.is_server {
+            for chunk in spawners.chunks(16) {
+                let message = SpawnMessage {
+                    network_spawners: chunk.to_vec(),
+                };
+
+                net.broadcast_message(message);
+            }
         }
     }
 
@@ -149,7 +164,9 @@ pub fn network_spawn_system(mut net: ResMut<NetworkResource>, spawn_resource: Re
         let channels = connection.channels().unwrap();
 
         while let Some(spawn_message) = channels.recv::<SpawnMessage>() {
-            spawn_resource.spawn(spawn_message);
+            for spawner in spawn_message.network_spawners {
+                spawn_resource.spawn(spawner);
+            }
         }
     }
 }

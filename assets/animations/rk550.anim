@@ -1,5 +1,4 @@
 AnimationSet(
-	default_texture: 0,
 	animation_textures: {
 		0: AnimationTexture(
 			rows: 1,

@@ -7,8 +7,6 @@ pub struct UnitSpawnable {
     pub position: Vec3,
     pub owner: PlayerId,
     pub unit: String,
-    pub animation_set: String,
-    pub unit_animation_set: String,
 }
 
 #[typetag::serde]
@@ -21,30 +19,27 @@ impl Spawnable for UnitSpawnable {
 
         let unit_handle = units.get_handle(self.unit.as_str());
         let unit = units.get(&unit_handle).unwrap();
-        let animation_set_handle = animation_sets.get_handle(self.animation_set.as_str());
+        let animation_set_handle = animation_sets.get_handle(unit.animation_set.as_str());
         let animation_set = animation_sets.get(&animation_set_handle).unwrap();
 
         let animator = Animator::new(animation_set_handle, "idle_up");
 
-        commands
-            .spawn((CommandQueue {
-                commands: VecDeque::new(),
-                request_set: None,
-            },))
-            .with(Behaviour::Idle)
-            .with(animator)
-            .with(unit_handle)
-            .with(unit.instance())
-            .with(Position {
+        commands.spawn((
+            CommandQueue::new(),
+            animator,
+            unit_handle,
+            unit.instance(),
+            Position {
                 position: self.position,
-            })
-            .with(UnitDirection::Down)
-            .with(Owner(self.owner));
+            },
+            UnitDirection::Down,
+            Owner(self.owner),
+        ));
 
         if network_settings.is_server {
             let unit_animation_sets = resources.get::<Assets<UnitAnimationSet>>().unwrap();
             let unit_animation_set =
-                unit_animation_sets.get_handle(self.unit_animation_set.as_str());
+                unit_animation_sets.get_handle(unit.unit_animation_set.as_str());
 
             commands
                 .with(unit_animation_set)
@@ -54,8 +49,9 @@ impl Spawnable for UnitSpawnable {
             let mut texture_atlases = resources.get_mut::<Assets<TextureAtlas>>().unwrap();
             let mut color_materials = resources.get_mut::<Assets<ColorMaterial>>().unwrap();
 
+            // FIXME: this is bad, will panic if no texture 0 is present
             let animation_texture =
-                &animation_set.animation_textures[&animation_set.default_texture];
+                &animation_set.animation_textures[&0];
 
             let texture = textures.get_handle(animation_texture.path.as_str());
             let texture_atlas = TextureAtlas::from_grid(
@@ -88,21 +84,20 @@ impl Spawnable for UnitSpawnable {
                         ..Default::default()
                     });
 
-                    parent
-                        .spawn(BarBundle {
-                            bar: Bar {
-                                size: Vec2::new(unit.width, 6.0),
-                                max_value: unit.max_health,
-                                current_value: unit.max_health,
-                                ..Default::default()
-                            },
-                            transform: Transform::from_translation(Vec3::new(
-                                0.0,
-                                unit.height + 16.0,
-                                0.0,
-                            )),
+                    parent.spawn(BarBundle {
+                        bar: Bar {
+                            size: Vec2::new(unit.width, 6.0),
+                            max_value: unit.max_health,
+                            current_value: unit.max_health,
                             ..Default::default()
-                        });
+                        },
+                        transform: Transform::from_translation(Vec3::new(
+                            0.0,
+                            unit.height + 16.0,
+                            0.0,
+                        )),
+                        ..Default::default()
+                    });
                 });
         }
 

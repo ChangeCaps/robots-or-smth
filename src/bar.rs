@@ -4,35 +4,90 @@ use bevy::{
     render::{
         pipeline::{PipelineDescriptor, RenderPipeline, *},
         render_graph::{base, RenderGraph, RenderResourcesNode},
-        renderer::RenderResources,
+        renderer::{RenderResources, RenderResource, RenderResourceIterator},
         shader::ShaderStages,
         texture::TextureFormat,
     },
+    core::*,
 };
 
 pub const BAR_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 1823518765843);
 
-#[derive(RenderResources, TypeUuid)]
+// god, i just want a proc-macro to align shit automatically
+#[derive(TypeUuid)]
 #[uuid = "980be34c-961e-4ac5-ab50-92cba0f8df01"]
+#[repr(C)]
 pub struct Bar {
     pub size: Vec2,
-    pub max_value: f32,
-    pub current_value: f32,
-    pub border_thickness: f32,
+    // this was hell, but damn, it was worth it
+    pub _filler0: [u8; 8],
+    pub border_color: Color,
     pub background_color: Color,
     pub color_a: Color,
     pub color_b: Color,
+    pub border_thickness: f32,
+    pub max_value: f32,
+    pub current_value: f32,
 }
+
+unsafe impl bevy::core::Byteable for Bar {}
+
+impl RenderResource for Bar {
+    fn resource_type(&self) -> Option<bevy::render::renderer::RenderResourceType> {
+        Some(bevy::render::renderer::RenderResourceType::Buffer)
+    }
+
+    fn write_buffer_bytes(&self, buffer: &mut [u8]) {
+        self.write_bytes(buffer);
+    }
+
+    fn buffer_byte_len(&self) -> Option<usize> {
+        Some(self.byte_len())
+    }
+
+    fn texture(&self) -> Option<&Handle<Texture>> {
+        None
+    }
+}
+
+impl RenderResources for Bar {
+    fn render_resources_len(&self) -> usize {
+        1
+    }
+
+    fn get_render_resource(&self, index: usize) -> Option<&dyn RenderResource> {
+        if index == 0 {
+            Some(self)
+        } else {
+            None
+        }
+    }
+
+    fn get_render_resource_name(&self, index: usize) -> Option<&str> {
+        if index == 0 {
+            Some("Bar")
+        } else {
+            None
+        }
+    }
+
+    fn iter(&self) -> RenderResourceIterator {
+        RenderResourceIterator::new(self)
+    }
+}
+
 
 impl Default for Bar {
     fn default() -> Self {
         Self {
+            _filler0: [0; 8],
             size: Vec2::new(64.0, 12.0),
             max_value: 200.0,
             current_value: 200.0,
             border_thickness: 1.0,
-            background_color: Color::hex("727272").unwrap(),
+            border_color: Color::hex("727272").unwrap(),
+            background_color: Color::hex("323232").unwrap(),
             color_a: Color::hex("d63131").unwrap(),
             color_b: Color::hex("cc5f5f").unwrap(),
         }

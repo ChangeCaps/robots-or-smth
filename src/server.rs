@@ -30,9 +30,10 @@ impl Server {
             .add_plugin(UnitPlugin::server())
             .add_plugin(ConnectionPlugin::server())
             .add_plugin(PositionPlugin::server())
+            .add_plugin(UnitAnimationPlugin::server())
+            .add_plugin(NetworkAudioPlugin::server())
             .add_plugin(MapPlugin)
             .add_plugin(NetworkingPlugin)
-            .add_plugin(UnitAnimationPlugin)
             // startup systems
             .add_startup_system(network_setup.system())
             .add_startup_system(setup.system())

@@ -37,6 +37,7 @@ pub struct InputConfig {
     pub add_to_selection: InputType,
     pub queue_actions: InputType,
     pub move_command: InputType,
+    pub attack_move_command: InputType,
     pub camera_scroll_speed: f32,
 }
 

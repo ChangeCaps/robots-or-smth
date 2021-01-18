@@ -70,6 +70,7 @@ impl UnitAnimation {
 #[uuid = "6a7b1ce9-c18a-437a-9bb1-3bffa3e3d55c"]
 pub struct UnitAnimationSet {
     animations: HashMap<String, UnitAnimation>,
+    sounds: HashMap<String, HashMap<u32, String>>,
 }
 
 impl UnitAnimationSet {
@@ -116,6 +117,7 @@ impl UnitAnimator {
 
 pub fn unit_animation_system(
     unit_animation_sets: Res<Assets<UnitAnimationSet>>,
+    mut net: ResMut<NetworkResource>,
     mut query: Query<
         (
             &mut Animator,
@@ -142,6 +144,14 @@ pub fn unit_animation_system(
         } else {
             animator.set_playing(animation);
         }
+
+        if animator.frame_just_changed() {
+            if let Some(sounds) = unit_animation_set.sounds.get(unit_animator.playing()) {
+                if let Some(sound) = sounds.get(&animator.current_frame()) {
+                    net.broadcast_message(AudioMessage::new(sound.clone()));
+                }
+            }
+        }
     }
 }
 
@@ -149,12 +159,25 @@ pub struct UnitAnimationSetLoader;
 
 ron_loader!(UnitAnimationSetLoader, "unit_anim" => UnitAnimationSet);
 
-pub struct UnitAnimationPlugin;
+pub struct UnitAnimationPlugin(bool);
+
+impl UnitAnimationPlugin {
+    pub fn server() -> Self {
+        Self(true)
+    }
+
+    pub fn client() -> Self {
+        Self(false)
+    }
+}
 
 impl Plugin for UnitAnimationPlugin {
     fn build(&self, app_builder: &mut AppBuilder) {
         app_builder.add_asset::<UnitAnimationSet>();
         app_builder.add_asset_loader(UnitAnimationSetLoader);
-        app_builder.add_system(unit_animation_system.system());
+
+        if self.0 {
+            app_builder.add_system(unit_animation_system.system());
+        }
     }
 }

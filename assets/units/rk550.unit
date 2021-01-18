@@ -1,15 +1,21 @@
 (
+    animation_set: "animations/rk550.anim",
+    unit_animation_set: "animations/rk550.unit_anim",
+    attack_sound: "sound/rk550_attack.mp3",
     size: 0.75,
     width: 64.0,
     height: 56.0,
-    selection_size: 0.75,
+    selection_size: 1.5,
     movement_priority: 4.0,
     max_health: 200.0,
-    soft_attack_range: 8.0,
-    hard_attack_range: 9.0,
-    attack_damage_frames: {
-        3: 70.0,
-    },
+    attack: Some(Attack(
+        range: 8.0,
+        engage_range: 10.0,
+        animation_lock: (start: 0, end: 6),
+        events: {
+            3: Damage(40.0),
+        },
+    )),
     movement_speed: FrameWise(
         speed: 1.0,
         frame_mods: [
@@ -37,6 +43,6 @@
             1.0, // 21
             1.2, // 22
             1.2, // 23
-        ]
+        ],
     ),
 )

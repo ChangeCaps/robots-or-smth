@@ -41,7 +41,6 @@ pub struct AnimationTexture {
 #[derive(TypeUuid, Serialize, Deserialize)]
 #[uuid = "53494558-e8f6-447f-94bc-7010a8979781"]
 pub struct AnimationSet {
-    pub default_texture: u32,
     pub animation_textures: HashMap<u32, AnimationTexture>,
     pub animations: HashMap<String, Animation>,
 }
@@ -53,29 +52,43 @@ impl AnimationSet {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum AnimatorOperation {
+pub enum AnimatorOperator {
     Play(String),
     SetPlaying(String, u32),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AnimatorMessage {
-    operation: AnimatorOperation,
+pub struct AnimatorOperation {
+    operator: AnimatorOperator,
     network_entity: NetworkEntity,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AnimatorMessage {
+    operations: Vec<AnimatorOperation>,
 }
 
 #[derive(Reflect)]
 pub struct Animator {
+    /// A [`Handle`] to the [`AnimationSet`].
     animation_set: Handle<AnimationSet>,
+    /// The identifier for the animation currently being played.
     playing_animation: String,
+    /// The current play time of the animation.
     play_time: f32,
+    /// Current frame, is updated each tick.
     current_frame: u32,
     #[reflect(ignore)]
+    /// If this is set, then the play time will be updated to match current_frame,
+    /// on the next frame.
     current_frame_set: bool,
     #[reflect(ignore)]
+    /// Is true the tick the frame was just set.
     current_frame_changed: bool,
     #[reflect(ignore)]
-    operations: Vec<AnimatorOperation>,
+    /// A list of operators applied to the animator, which will then be sent to each client
+    /// at the end of each tick.
+    operators: Vec<AnimatorOperator>,
 }
 
 impl Animator {
@@ -87,7 +100,7 @@ impl Animator {
             current_frame: 0,
             current_frame_set: false,
             current_frame_changed: true,
-            operations: Vec::new(),
+            operators: Vec::new(),
         }
     }
 
@@ -97,7 +110,7 @@ impl Animator {
         self.play_time = 0.0;
         self.current_frame = 0;
         self.current_frame_changed = true;
-        self.operations.push(AnimatorOperation::Play(name));
+        self.operators.push(AnimatorOperator::Play(name));
     }
 
     pub fn playing(&self) -> &String {
@@ -112,8 +125,8 @@ impl Animator {
         }
 
         self.playing_animation = name.clone();
-        self.operations
-            .push(AnimatorOperation::SetPlaying(name, self.current_frame()));
+        self.operators
+            .push(AnimatorOperator::SetPlaying(name, self.current_frame()));
     }
 
     pub fn current_frame(&self) -> u32 {
@@ -132,14 +145,14 @@ impl Animator {
         self.current_frame_changed
     }
 
-    pub fn apply(&mut self, message: AnimatorOperation) {
+    pub fn apply(&mut self, message: AnimatorOperator) {
         match message {
-            AnimatorOperation::Play(anim) => {
+            AnimatorOperator::Play(anim) => {
                 self.playing_animation = anim;
                 self.play_time = 0.0;
                 self.current_frame = 0;
             }
-            AnimatorOperation::SetPlaying(anim, frame) => {
+            AnimatorOperator::SetPlaying(anim, frame) => {
                 self.playing_animation = anim;
                 self.current_frame = frame;
             }
@@ -226,15 +239,25 @@ pub fn server_network_animator_system(
     mut net: ResMut<NetworkResource>,
     mut query: Query<(&NetworkEntity, &mut Animator)>,
 ) {
+    let mut operations = Vec::new();
+
     for (network_entity, mut animator) in query.iter_mut() {
-        for operation in animator.operations.drain(..) {
-            let message = AnimatorMessage {
-                operation,
+        for operator in animator.operators.drain(..) {
+            let operation = AnimatorOperation {
+                operator,
                 network_entity: network_entity.clone(),
             };
 
-            net.broadcast_message(message);
+            operations.push(operation);
         }
+    }
+
+    for chunk in operations.chunks(128) {
+        let message = AnimatorMessage {
+            operations: chunk.to_vec(),
+        };
+
+        net.broadcast_message(message);
     }
 }
 
@@ -243,24 +266,22 @@ pub fn client_network_animator_system(
     network_entity_registry: Res<NetworkEntityRegistry>,
     mut query: Query<&mut Animator>,
 ) {
-    for (handle, connection) in net.connections.iter_mut() {
+    for (_handle, connection) in net.connections.iter_mut() {
         let channels = connection.channels().unwrap();
 
         while let Some(animator_message) = channels.recv::<AnimatorMessage>() {
-            let entity =
-                if let Some(e) = network_entity_registry.get(&animator_message.network_entity) {
+            for operation in animator_message.operations {
+                let entity = if let Some(e) = network_entity_registry.get(&operation.network_entity)
+                {
                     e
                 } else {
-                    warn!(
-                        "Recieved animation message for unregistered entity {}",
-                        handle
-                    );
                     continue;
                 };
 
-            let mut animator = query.get_mut(*entity).unwrap();
+                let mut animator = query.get_mut(*entity).unwrap();
 
-            animator.apply(animator_message.operation);
+                animator.apply(operation.operator);
+            }
         }
     }
 }

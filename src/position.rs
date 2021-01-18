@@ -44,10 +44,10 @@ pub fn client_network_position_system(
             if let Some(entity) = network_entity_registry.get(&position_message.network_entity) {
                 *query.get_mut(*entity).unwrap() = position_message.position;
             } else {
-                warn!(
+                /*warn!(
                     "Got position mesage for unregistered network entity: {:?}",
                     position_message.network_entity
-                );
+                );*/
             }
         }
     }

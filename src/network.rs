@@ -98,103 +98,67 @@ pub fn network_setup(mut net: ResMut<NetworkResource>) {
         builder
             .register::<UnitInstanceMessage>(UNIT_INSTANCE_MESSAGE_SETTINGS)
             .unwrap();
+
+        builder
+            .register::<AudioMessage>(AUDIO_MESSAGE_SETTINGS)
+            .unwrap();
     });
 }
 
-pub const CONNECTION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
+pub const DEFAULT_RELIABLE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 0,
-    channel_mode: MessageChannelMode::Reliable {
+    channel_mode: MessageChannelMode::Compressed {
         reliability_settings: ReliableChannelSettings {
-            bandwidth: 4096,
-            recv_window_size: 1024,
-            send_window_size: 1024,
-            burst_bandwidth: 1024,
-            init_send: 512,
-            wakeup_time: Duration::from_millis(100),
-            initial_rtt: Duration::from_millis(200),
-            max_rtt: Duration::from_secs(2),
+            bandwidth: 4096 * 16,
+            recv_window_size: 1024 * 2,
+            send_window_size: 1024 * 2,
+            burst_bandwidth: 1024 * 4,
+            init_send: 512 * 2,
+            wakeup_time: Duration::from_millis(50),
+            initial_rtt: Duration::from_millis(100),
+            max_rtt: Duration::from_millis(2000),
             rtt_update_factor: 0.1,
             rtt_resend_factor: 1.5,
         },
-        max_message_len: 1024,
+        max_chunk_len: 1024 * 16,
     },
-    message_buffer_size: 64,
-    packet_buffer_size: 64,
+    message_buffer_size: 64 * 4,
+    packet_buffer_size: 64 * 4,
+};
+
+pub const CONNECTION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
+    channel: 0,
+    ..DEFAULT_RELIABLE_SETTINGS
 };
 
 const ANIMATOR_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 1,
-    channel_mode: MessageChannelMode::Unreliable,
-    message_buffer_size: 64,
-    packet_buffer_size: 64,
+    ..DEFAULT_RELIABLE_SETTINGS
 };
 
 const SPAWNER_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 2,
-    channel_mode: MessageChannelMode::Reliable {
-        reliability_settings: ReliableChannelSettings {
-            bandwidth: 4096,
-            recv_window_size: 1024,
-            send_window_size: 1024,
-            burst_bandwidth: 1024,
-            init_send: 512,
-            wakeup_time: Duration::from_millis(100),
-            initial_rtt: Duration::from_millis(200),
-            max_rtt: Duration::from_secs(2),
-            rtt_update_factor: 0.1,
-            rtt_resend_factor: 1.5,
-        },
-        max_message_len: 1024,
-    },
-    message_buffer_size: 64,
-    packet_buffer_size: 64,
+    ..DEFAULT_RELIABLE_SETTINGS
 };
 
 const ACTION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 3,
-    channel_mode: MessageChannelMode::Reliable {
-        reliability_settings: ReliableChannelSettings {
-            bandwidth: 4096,
-            recv_window_size: 1024,
-            send_window_size: 1024,
-            burst_bandwidth: 1024,
-            init_send: 512,
-            wakeup_time: Duration::from_millis(100),
-            initial_rtt: Duration::from_millis(200),
-            max_rtt: Duration::from_secs(2),
-            rtt_update_factor: 0.1,
-            rtt_resend_factor: 1.5,
-        },
-        max_message_len: 1024,
-    },
-    message_buffer_size: 64,
-    packet_buffer_size: 64,
+    ..DEFAULT_RELIABLE_SETTINGS
 };
 
 const POSITION_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 4,
     channel_mode: MessageChannelMode::Unreliable,
-    message_buffer_size: 64,
+    message_buffer_size: 64 * 4,
     packet_buffer_size: 64,
 };
 
 const UNIT_INSTANCE_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
     channel: 5,
-    channel_mode: MessageChannelMode::Reliable {
-        reliability_settings: ReliableChannelSettings {
-            bandwidth: 4096,
-            recv_window_size: 1024,
-            send_window_size: 1024,
-            burst_bandwidth: 1024,
-            init_send: 512,
-            wakeup_time: Duration::from_millis(100),
-            initial_rtt: Duration::from_millis(200),
-            max_rtt: Duration::from_secs(2),
-            rtt_update_factor: 0.1,
-            rtt_resend_factor: 1.5,
-        },
-        max_message_len: 1024,
-    },
-    message_buffer_size: 64,
-    packet_buffer_size: 64,
+    ..DEFAULT_RELIABLE_SETTINGS
+};
+
+const AUDIO_MESSAGE_SETTINGS: MessageChannelSettings = MessageChannelSettings {
+    channel: 6,
+    ..DEFAULT_RELIABLE_SETTINGS
 };

@@ -3,5 +3,6 @@ InputConfig(
     add_to_selection: Keyboard(LShift),
     queue_actions: Keyboard(LShift),
     move_command: Mouse(Right),
+    attack_move_command: Keyboard(A),
     camera_scroll_speed: 512.0,
 )

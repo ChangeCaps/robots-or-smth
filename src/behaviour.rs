@@ -1,6 +1,7 @@
 use crate::*;
 use std::collections::HashMap;
 
+/*
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Behaviour {
     Move {
@@ -14,11 +15,9 @@ pub enum Behaviour {
     Idle,
 }
 
-pub fn unit_command_behaviour_system(
+pub fn unit_move_behaviour_system(
     time: Res<Time>,
     units: Res<Assets<Unit>>,
-    network_entity_registry: Res<NetworkEntityRegistry>,
-    mut unit_instance_query: Query<&mut UnitInstance>,
     mut query: Query<(
         &Behaviour,
         &mut Position,
@@ -28,14 +27,8 @@ pub fn unit_command_behaviour_system(
         &mut UnitDirection,
     )>,
 ) {
-    for (
-        behaviour,
-        mut position,
-        animator,
-        mut unit_animator,
-        unit_handle,
-        mut direction,
-    ) in query.iter_mut()
+    for (behaviour, mut position, animator, mut unit_animator, unit_handle, mut direction) in
+        query.iter_mut()
     {
         match behaviour {
             Behaviour::Move { target } => {
@@ -66,6 +59,24 @@ pub fn unit_command_behaviour_system(
 
                 position.position += step.extend(0.0) * move_dist;
             }
+            _ => (),
+        }
+    }
+}
+
+pub fn unit_attack_behaviour_system(
+    mut net: ResMut<NetworkResource>,
+    mut unit_instance_query: Query<&mut UnitInstance>,
+    mut query: Query<(
+        &Behaviour,
+        &Position,
+        &Animator,
+        &mut UnitAnimator,
+        &mut UnitDirection,
+    )>,
+) {
+    for (behaviour, position, animator, mut unit_animator, mut direction) in query.iter_mut() {
+        match behaviour {
             Behaviour::Attack {
                 target_position,
                 target,
@@ -89,11 +100,50 @@ pub fn unit_command_behaviour_system(
                     }
                 }
             }
+            _ => (),
+        }
+    }
+}
+
+pub fn unit_idle_behaviour_system(
+    units: Res<Assets<Unit>>,
+    unit_query: Query<(&Position, &Owner, &NetworkEntity), With<Handle<Unit>>>,
+    mut query: Query<(
+        &Behaviour,
+        &Position,
+        &Handle<Unit>,
+        &mut CommandQueue,
+        &mut UnitAnimator,
+        &Owner,
+    )>,
+) {
+    for (behaviour, position, unit_handle, mut command_queue, mut unit_animator, owner) in
+        query.iter_mut()
+    {
+        match behaviour {
             Behaviour::Idle => {
                 if unit_animator.playing().as_str() != "idle" {
                     unit_animator.play("idle");
                 }
+
+                let unit = units.get(&*unit_handle).unwrap();
+
+                for (unit_position, unit_owner, network_entity) in unit_query.iter() {
+                    let dist =
+                        (unit_position.position.truncate() - position.position.truncate()).length();
+
+                    if dist <= unit.engage_range && owner.0 != unit_owner.0 {
+                        command_queue
+                            .set_command(
+                                Command::Attack {
+                                    target: CommandTarget::Enemy(*network_entity)
+                                }
+                            );
+                    }
+                }
             }
+            _ => (),
         }
     }
 }
+*/
